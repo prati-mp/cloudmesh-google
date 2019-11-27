@@ -4,7 +4,7 @@ from pprint import pprint
 
 import boto3
 from botocore.exceptions import ClientError
-from cloudmesh.storage.StorageNewABC import StorageNewABC
+from cloudmesh.storage.StorageNewABC import StorageABC
 import oyaml as yaml
 from cloudmesh.common.debug import VERBOSE
 from cloudmesh.common.StopWatch import StopWatch
@@ -20,7 +20,7 @@ import os
 import shutil
 
 
-class Provider(StorageNewABC):
+class Provider(StorageABC):
     """
     Provider class for local storage.
     This class allows transfer of objects from local storage location to a

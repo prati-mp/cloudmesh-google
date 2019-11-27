@@ -16,24 +16,28 @@ def gcstest():
 
     """
 
+    download_path = path_expand("~/.cloudmesh/download_file")
+    json_path = path_expand("~/.cloudmesh/gcp.json")
+
     cheat = True
     proper = not cheat
 
     if cheat: # ;-)
         # credentials
-        json_path=path_expand("~/.cloudmesh/gcp.json")
+        bucketname = "cloudmesh_gcp"
         gcp = storage.Client.from_service_account_json(json_path)
     elif proper:
-        raise NotImplementedError
-        # read from yaml file
-        # ;-)
+        config = Config()
+        google = config(f'cloudmesh.storage.{name}')
+        bucketname = google["default"]["directory"]
+        credentials = google["credentials"]
 
     # printing buckets
     buckets = list(gcp.list_buckets())
     print(buckets)
 
     # Get the bucket that the file will be uploaded to.
-    bucket = gcp.get_bucket('cloudmesh_gcp')
+    bucket = gcp.get_bucket(bucketname)
 
     # list files
     blobs = list(bucket.list_blobs())
@@ -51,11 +55,12 @@ def gcstest():
 
     #download file
     blob2 = bucket.get_blob('test12')
-    blob2.download_to_filename('/Users/shreyansjain_2/cm/gcp/downloadfile')
+
+    blob2.download_to_filename(download_path)
     #blob2.download_to_file()
 
     # Create a new folder.
-    folder = 'a10/a9/'
+    folder = 'a13/a14/'
     blob1 = bucket.blob(folder)
     blob1.upload_from_string('')
 
@@ -68,4 +73,4 @@ def gcstest():
     #print('Blob {} deleted.'.format(blob_name))
 
 
-gcstest();
+gcstest()

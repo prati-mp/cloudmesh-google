@@ -6,6 +6,7 @@ from cloudmesh.common.console import Console
 from cloudmesh.common.util import path_expand
 from pprint import pprint
 from cloudmesh.common.debug import VERBOSE
+from cloudmesh.configuration.Config import Config
 
 class GoogleCommand(PluginCommand):
 
@@ -16,8 +17,9 @@ class GoogleCommand(PluginCommand):
         ::
 
           Usage:
-                google --file=FILE
-                google list
+                google yaml write FILE_JSON [--name=NAME]
+                google yaml list [--name=NAME]
+                google yaml read FILE_JSON [--name=NAME]
 
           This command does some useful things.
 
@@ -27,20 +29,29 @@ class GoogleCommand(PluginCommand):
           Options:
               -f      specify the file
 
+
+
         """
-        arguments.FILE = arguments['--file'] or None
+
 
         VERBOSE(arguments)
 
-        m = Manager()
+        name = arguments["--name"] or "google"
 
-        if arguments.FILE:
-            print("option a")
-            m.list(path_expand(arguments.FILE))
+        if arguments.yaml and arguments.write:
+            print("Read the  specification from yaml and write to json file")
+            raise NotImplementedError
+
+        elif arguments.yaml and arguments.read:
+            print("Read the  specification from json and write to yaml file")
+            raise NotImplementedError
 
         elif arguments.list:
-            print("option b")
-            m.list("just calling list without parameter")
+            print("Content of current yaml file")
 
-        Console.error("This is just a sample")
+            config = Config()
+
+            credentials = config[f"cloudmesh.storage.{name}.credentials"]
+            pprint(credentials)
+
         return ""
