@@ -7,7 +7,7 @@ from cloudmesh.common.util import path_expand
 from pprint import pprint
 from cloudmesh.common.debug import VERBOSE
 from cloudmesh.configuration.Config import Config
-
+from cloudmesh.common.util import banner
 
 class GoogleCommand(PluginCommand):
 
@@ -55,13 +55,9 @@ class GoogleCommand(PluginCommand):
             storage = config["cloudmesh.storage"]
             for element in storage:
                 if storage[element]["cm"]["kind"] == "google":
-                    #pprint(storage[element])
-                    import oyaml as yaml
-                    kluge = yaml.dump(config[f"cloudmesh.storage.{element}"], default_flow_style=False, indent=2)
-                    print (kluge)
-                    print (Config.cat_lines(kluge, mask_secrets=True))
-
-
+                    d = config[f"cloudmesh.storage.{element}"]
+                    banner("cloudmesh.storage." + element)
+                    print(Config.cat_dict(d))
 
         elif arguments.list:
             print("Content of current yaml file")
