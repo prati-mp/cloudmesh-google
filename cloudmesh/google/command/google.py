@@ -17,6 +17,7 @@ class GoogleCommand(PluginCommand):
         ::
 
           Usage:
+                google install gsutil
                 google yaml write FILE_JSON [--name=NAME]
                 google yaml list [--name=NAME]
                 google yaml read FILE_JSON [--name=NAME]
@@ -53,5 +54,15 @@ class GoogleCommand(PluginCommand):
 
             credentials = config[f"cloudmesh.storage.{name}.credentials"]
             pprint(credentials)
+
+        elif arguments.install:
+            if sys.platform == "darwin":
+                os.system('curl https://sdk.cloud.google.com | bash')
+            elif sys.platform == "win32":
+                raise NotImplementedError
+            elif sys.platform == "linux":
+                os.system('curl https://sdk.cloud.google.com | bash')
+            else:
+                raise NotImplementedError
 
         return ""
