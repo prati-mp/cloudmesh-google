@@ -3,6 +3,8 @@ from cloudmesh.common.util import path_expand
 def gcstest():
     from google.cloud import storage
 
+
+
     # gcp = storage.Client.from_service_account_json('/Users/shreyansjain_2/cm/gcp/gcp_shrejain.json')
     """    
     
@@ -24,13 +26,27 @@ def gcstest():
 
     if cheat: # ;-)
         # credentials
-        bucketname = "cloudmesh_gcp"
+        bucket_name = "cloudmesh_gcp"
         gcp = storage.Client.from_service_account_json(json_path)
     elif proper:
         config = Config()
         google = config(f'cloudmesh.storage.{name}')
-        bucketname = google["default"]["directory"]
+        bucket_name = google["default"]["directory"]
         credentials = google["credentials"]
+
+
+    # The name for the new bucket
+    bucket_name = 'my-new-bucket'
+
+    # Creates the new bucket
+    try:
+        bucket = storage_client.create_bucket(bucket_name)
+    except Exception as e:
+        print(e)
+
+
+    print('Bucket {} created.'.format(bucket.name))
+
 
     # printing buckets
     buckets = list(gcp.list_buckets())

@@ -2,8 +2,8 @@ import os
 import stat
 from pprint import pprint
 
-import boto3
-from botocore.exceptions import ClientError
+
+
 from cloudmesh.storage.StorageNewABC import StorageABC
 import oyaml as yaml
 from cloudmesh.common.debug import VERBOSE
@@ -45,6 +45,27 @@ class Provider(StorageABC):
             userid: None
             password: None
     """
+
+    @staticmethod
+    def _get_credentials(config):
+        """
+        Internal function to create a dict for the openstacksdk credentials.
+
+        :param config: The credentials from the cloudmesh yaml file
+        :return: the dict for the openstacksdk
+        """
+
+        d = {'version': '2', 'username': config['OS_USERNAME'],
+             'password': config['OS_PASSWORD'],
+             'auth_url': config['OS_AUTH_URL'],
+             'project_id': config['OS_TENANT_NAME'],
+             'region_name': config['OS_REGION_NAME'],
+             'tenant_id': config['OS_TENANT_ID']}
+        # d['project_domain_name'] = config['OS_PROJECT_NAME']
+        return d
+
+
+
 
     def __init__(self, service=None, config="~/.cloudmesh/cloudmesh.yaml",
                  **kwargs):
