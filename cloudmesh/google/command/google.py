@@ -8,8 +8,33 @@ from pprint import pprint
 from cloudmesh.common.debug import VERBOSE
 from cloudmesh.configuration.Config import Config
 from cloudmesh.common.util import banner
+from cloudmesh.common.util import readfile, writefile
+import json
+
+
 
 class GoogleCommand(PluginCommand):
+
+    """
+    STUDENT - gooes to google
+    student download json google.json
+    student does
+
+        cms google yaml add google.json [--name=NAME]
+
+            cloudmesh.storage.NAME
+
+    content gets written into yaml file
+    woudl you like to delete the file google.json (y)
+
+    student say
+
+    cms transfer xys
+
+    system checks if ~/.google.json exists, if not, creates its
+
+    now this json file is used for authentication ....async
+    """
 
     # noinspection PyUnusedLocal
     @command
@@ -20,7 +45,7 @@ class GoogleCommand(PluginCommand):
           Usage:
                 google yaml write FILE_JSON [--name=NAME]
                 google yaml list [--name=NAME]
-                google yaml read FILE_JSON [--name=NAME]
+                google yaml add FILE_JSON [--name=NAME]
                 google list storage
 
           This command does some useful things.
@@ -43,9 +68,15 @@ class GoogleCommand(PluginCommand):
             print("Read the  specification from yaml and write to json file")
             raise NotImplementedError
 
-        elif arguments.yaml and arguments.read:
-            print("Read the  specification from json and write to yaml file")
-            raise NotImplementedError
+        elif arguments.yaml and arguments.add:
+            banner("Read the  specification from json and write to yaml file")
+            path = path_expand(arguments["FILE_JSON"])
+            name = arguments["--name"]
+            from cloudmesh.google.storage.Provider import Provider
+
+            Provider.json_to_yaml(name, filename=path)
+
+
 
         elif arguments.list and arguments.storage:
             print("List all google storage providers")
