@@ -120,6 +120,8 @@ class Provider(StorageABC):
                  **kwargs):
         super().__init__(service=service, config=config)
 
+
+
         if json:
             self.path = path_expand(json)
             self.client = storage.Client.from_service_account_json(self.path)
@@ -130,13 +132,15 @@ class Provider(StorageABC):
             self.kind = self.config[f"cloudmesh.storage.{service}.cm.kind"]
             self.credentials = dotdict(self.configuration["credentials"])
             self.bucket_name = self.config[f"cloudmesh.storage.{service}.default.directory"]
-            self.yaml_to_json(service)
+           # self.yaml_to_json(service)
             self.path = path_expand("~/.cloudmesh/google.json")
-            self.path = path_expand("~/.cloudmesh/gcp.json")
-
+            print("11111:",self.path)
+            print("bucketName:", self.bucket_name)
             self.client = storage.Client.from_service_account_json(self.path)
+            self.storage_dict = {}
+            self.bucket = self.client.get_bucket(self.bucket_name)
 
-            # self.buacket = ?????
+
 
     # def extract_file_dict(self, filename, metadata):
     #     # print(metadata)
@@ -220,11 +224,11 @@ class Provider(StorageABC):
                 metadata['ResponseMetadata']['HTTPHeaders']['content-length']
         }
 
-    download_path = path_expand("~/.cloudmesh/download_file")
-    json_path = path_expand("~/.cloudmesh/gcp.json")
-
-    bucket_name = "cloudmesh_gcp"
-    gcp = storage.Client.from_service_account_json(json_path)
+    # download_path = path_expand("~/.cloudmesh/download_file")
+    # json_path = path_expand("~/.cloudmesh/gcp.json")
+    #
+    # bucket_name = "cloudmesh_gcp"
+    # gcp = storage.Client.from_service_account_json(json_path)
 
     def get(self, source=None, destination=None, recursive=False):
 
@@ -266,6 +270,11 @@ class Provider(StorageABC):
         print(blobs)
         for blob in blobs:
             print(blob.name)
+
+    def delete(self, source=None):
+        self.storage_dict['source'] = source
+        banner("delete an object in bucket")
+        self.bucket.delete_blob('source')
 
 
     # def list(self, service=None, sourceObj=None, recursive=False):
