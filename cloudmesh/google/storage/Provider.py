@@ -11,6 +11,7 @@ from cloudmesh.common.console import Console
 from cloudmesh.common.util import banner, path_expand, writefile, readfile
 from cloudmesh.common.Printer import Printer
 from cloudmesh.configuration.Config import Config
+
 from google.cloud import storage
 
 from pathlib import Path
@@ -49,9 +50,7 @@ class Provider(StorageABC):
     @staticmethod
     def json_to_yaml(name, filename="~/.cloudmesh/google.json"):
         """
-        given a json file downloaded from google, copies the content into the cloudmesh
-        jaml file, while overwriting or creating a new storage provider
-
+        given a json file downloaded from google, copies the content into the cloudmesh yaml file, while overwriting or creating a new storage provider
         :param filename:
         :return:
         """
@@ -68,8 +67,7 @@ class Provider(StorageABC):
                 "active": 'true',
                 "heading": "GCP",
                 "host": "https://console.cloud.google.com/storage",
-                "kind": "storage",
-                "cloud": "google",
+                "kind": "google",
                 "version": "TBD",
                 "service": "storage"
             },
@@ -98,12 +96,13 @@ class Provider(StorageABC):
         :param filename:
         :return:
         """
+        print ("AAAA")
         config = Config()
         configuration = config[f"cloudmesh.storage.{name}"]
         credentials = config[f"cloudmesh.storage.{name}.credentials"]
         # generate json
-        writefile(filename, json.dumps(credentials, indent=4))
 
+        writefile(filename, json.dumps(credentials, indent=2) + "\n")
 
     @staticmethod
     def delete_json(filename="~/.cloudmesh/google.json"):
@@ -112,6 +111,7 @@ class Provider(StorageABC):
         :param filename:
         :return:
         """
+        raise NotImplementedError
 
     def __init__(self,
                  service=None,
@@ -132,8 +132,11 @@ class Provider(StorageABC):
             self.bucket_name = self.config[f"cloudmesh.storage.{service}.default.directory"]
             self.yaml_to_json(service)
             self.path = path_expand("~/.cloudmesh/google.json")
+            self.path = path_expand("~/.cloudmesh/gcp.json")
+
             self.client = storage.Client.from_service_account_json(self.path)
 
+            # self.buacket = ?????
 
     # def extract_file_dict(self, filename, metadata):
     #     # print(metadata)
@@ -186,19 +189,98 @@ class Provider(StorageABC):
     #     blob1.upload_from_string('')
 
 
-    def list(self, service=None, sourceObj=None, recursive=False):
-        raise NotImplementedError
 
-    def delete(self, service="local", sourceObj=None, recursive=False):
-        raise NotImplementedError
+    def update_dict(self, elements, kind=None):
+        # this is an internal function for building dict object
+        d = []
+        print("1")
+        for element in elements:
+            # entry = element.__dict__
+            # entry = element['objlist']
+            entry = element
+            entry["cm"] = {
+                "kind": "google",
+                "cloud": self.cloud,
+                "name": entry['fileName']
+            }
 
-    def put(self, source=None, destination=None, recursive=False):
-        raise NotImplementedError
+            # element.properties = element.properties.__dict__
+            d.append(entry)
+            print("2")
+        return d
+
+    def extract_file_dict(self, filename, metadata):
+        # print(metadata)
+        info = {
+            "fileName": filename,
+            # "creationDate" : metadata['ResponseMetadata']['HTTPHeaders']['date'],
+            "lastModificationDate":
+                metadata['ResponseMetadata']['HTTPHeaders']['last-modified'],
+            "contentLength":
+                metadata['ResponseMetadata']['HTTPHeaders']['content-length']
+        }
+
+    download_path = path_expand("~/.cloudmesh/download_file")
+    json_path = path_expand("~/.cloudmesh/gcp.json")
+
+    bucket_name = "cloudmesh_gcp"
+    gcp = storage.Client.from_service_account_json(json_path)
 
     def get(self, source=None, destination=None, recursive=False):
-        raise NotImplementedError
 
-    def search(self, directory=None, filename=None, recursive=False):
-        raise NotImplementedError
+        self.storage_dict['source'] = source  # src
+        self.storage_dict['destination'] = destination  # dest
+        print(self.bucket)
+        print(source)
+        print(destination)
+        try:
+            blob2 = self.bucket.get_blob(source)
+            blob2.download_to_filename(path_expand(destination))
+            print("Get module success")
+            # objlist = [1,2,3]
+            # dictObj = self.update_dict(self.storage_dict[objlist])
+            # # return self.storage_dict
+            # return dictObj
+        except Exception as e:
+            print('Failed to upload to ftp: ' + str(e))
 
+    def put(self, source=None, destination=None, recursive=False):
+
+        print(self.bucket)
+        self.storage_dict['action'] = 'get'
+        self.storage_dict['source'] = source
+        self.storage_dict['destination'] = destination  # dest
+        print(self.bucket)
+        print(source)
+        print(destination)
+        blob = self.bucket.blob(destination)
+        blob.upload_from_filename(path_expand(source))
+
+    def list(self, source=None, dir_only=False, recursive=False):
+
+        self.storage_dict['source'] = source
+        print(self.bucket)
+        print(source)
+        blobs = self.client.list_blobs(self.bucket_name, prefix=source)
+        print('Blobs:')
+        print(blobs)
+        for blob in blobs:
+            print(blob.name)
+
+
+    # def list(self, service=None, sourceObj=None, recursive=False):
+    #     raise NotImplementedError
+    #
+    # def delete(self, service="local", sourceObj=None, recursive=False):
+    #     raise NotImplementedError
+    #
+    # def put(self, source=None, destination=None, recursive=False):
+    #     raise NotImplementedError
+    #
+    # def get(self, source=None, destination=None, recursive=False):
+    #     raise NotImplementedError
+    #
+    # def search(self, directory=None, filename=None, recursive=False):
+    #     raise NotImplementedError
+    #
 
