@@ -8,7 +8,7 @@ import oyaml as yaml
 from cloudmesh.common.debug import VERBOSE
 from cloudmesh.common.StopWatch import StopWatch
 from cloudmesh.common.console import Console
-from cloudmesh.common.util import banner, path_expand
+from cloudmesh.common.util import banner, path_expand, writefile, readfile
 from cloudmesh.common.Printer import Printer
 from cloudmesh.configuration.Config import Config
 from google.cloud import storage
@@ -49,7 +49,9 @@ class Provider(StorageABC):
     @staticmethod
     def json_to_yaml(name, filename="~/.cloudmesh/google.json"):
         """
-        given a json file downloaded from google, copies the content into the cloudmesh jaml file, while overwriting or creating a new storage provider
+        given a json file downloaded from google, copies the content into the cloudmesh
+        jaml file, while overwriting or creating a new storage provider
+
         :param filename:
         :return:
         """
@@ -63,12 +65,23 @@ class Provider(StorageABC):
         element = {
             "cm": {
                 "name": name,
+                "active": 'true',
+                "heading": "GCP",
+                "host": "https://console.cloud.google.com/storage",
                 "kind": "storage",
                 "cloud": "google",
-
+                "version": "TBD",
+                "service": "storage"
             },
             "default": {
-                "directory": "cloudmesh_gcp"
+                "directory": "cloudmesh_gcp",
+                "Location_type": "Region",
+                "Location": "us - east1",
+                "Default_storage_class": "Standard",
+                "Access_control": "Uniform",
+                "Encryption": "Google-managed",
+                "Link_URL": "https://console.cloud.google.com/storage/browser/cloudmesh_gcp",
+                "Link_for_gsutil": "gs://cloudmesh_gcp"
             },
             "credentials": d
         }
@@ -85,7 +98,12 @@ class Provider(StorageABC):
         :param filename:
         :return:
         """
-        raise NotImplementedError
+        config = Config()
+        configuration = config[f"cloudmesh.storage.{name}"]
+        credentials = config[f"cloudmesh.storage.{name}.credentials"]
+        # generate json
+        writefile(filename, json.dumps(credentials, indent=4))
+
 
     @staticmethod
     def delete_json(filename="~/.cloudmesh/google.json"):
@@ -115,3 +133,72 @@ class Provider(StorageABC):
             self.yaml_to_json(service)
             self.path = path_expand("~/.cloudmesh/google.json")
             self.client = storage.Client.from_service_account_json(self.path)
+
+
+    # def extract_file_dict(self, filename, metadata):
+    #     # print(metadata)
+    #     info = {
+    #         "fileName": filename,
+    #         # "creationDate" : metadata['ResponseMetadata']['HTTPHeaders']['date'],
+    #         "lastModificationDate":
+    #             metadata['ResponseMetadata']['HTTPHeaders']['last-modified'],
+    #         "contentLength":
+    #             metadata['ResponseMetadata']['HTTPHeaders']['content-length']
+    #     }
+    #
+    # download_path = path_expand("~/.cloudmesh/download_file")
+    # json_path = path_expand("~/.cloudmesh/gcp.json")
+    #
+    # bucket_name = "cloudmesh_gcp"
+    # gcp = storage.Client.from_service_account_json(json_path)
+
+
+    # def bucket_exists(self, name=None):
+    #      bucket = gcp.get_bucket(name)
+    #
+    #      if bucket == bucket_name:
+    #         return  True
+    #      else:
+    #          return False
+    #
+    #
+    # def bucket_create(self, name=None):
+    #
+    #     #bucket_name = 'my-new-bucket_shre2'
+    #     Creates the new bucket
+    #     bucket = storage_client.create_bucket(bucket_name)
+    #     print("Bucket Created:", bucket_name)
+    #     return True
+    #
+    #
+    #
+    #
+    #
+    # def create_dir(self, directory=None):
+    #     bucket = bucket_name
+    #     if not self.bucket_exists(name=bucket):
+    #         self.bucket_create(name=bucket)
+    #     banner("Create a dir in bucket")
+    #     # Create a new folder.
+    #     folder = directory
+    #     #folder = 'a169/a17/'
+    #     blob1 = bucket.blob(folder)
+    #     blob1.upload_from_string('')
+
+
+    def list(self, service=None, sourceObj=None, recursive=False):
+        raise NotImplementedError
+
+    def delete(self, service="local", sourceObj=None, recursive=False):
+        raise NotImplementedError
+
+    def put(self, source=None, destination=None, recursive=False):
+        raise NotImplementedError
+
+    def get(self, source=None, destination=None, recursive=False):
+        raise NotImplementedError
+
+    def search(self, directory=None, filename=None, recursive=False):
+        raise NotImplementedError
+
+

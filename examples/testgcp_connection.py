@@ -1,4 +1,5 @@
-from cloudmesh.common.util import path_expand
+from cloudmesh.common.util import path_expand, banner
+import os
 
 def gcstest():
     from google.cloud import storage
@@ -34,32 +35,61 @@ def gcstest():
         bucket_name = google["default"]["directory"]
         credentials = google["credentials"]
 
-
+    # def list_buckets():
+    #     """Lists all buckets."""
+    #     storage_client = storage.Client()
+    #     buckets = storage_client.list_buckets()
+    #
+    #     for bucket in buckets:
+    #         print(bucket.name)
     # The name for the new bucket
-    bucket_name = 'my-new-bucket'
+    # bucket_name = 'my-new-bucket'
 
     # Creates the new bucket
-    try:
-        bucket = storage_client.create_bucket(bucket_name)
-    except Exception as e:
-        print(e)
+    # try:
+    #     bucket = storage_client.create_bucket(bucket_name)
+    # except Exception as e:
+    #     print(e)
 
 
-    print('Bucket {} created.'.format(bucket.name))
+    #print('Bucket {} created.'.format(bucket.name))
+    # gsutil ls
 
-
+    banner ("LITBUCKET")
     # printing buckets
     buckets = list(gcp.list_buckets())
-    print(buckets)
+    from pprint import pprint
+    pprint(buckets)
+    pprint (buckets.__dir__)
+    pprint(dir(buckets))
+
+    # print (help(buckets))
+    banner ("OPEN")
+
+    def open_bucket(name):
+        try:
+            bucket = gcp.get_bucket(name)
+        except:
+            return None
+
+    banner ("does not exists")
+    b = open_bucket("doesnotexist")
+    print (b)
+
+    banner("GET BUCKET")
+    b = open_bucket(bucket_name)
+    print(b)
+
+    banner ("STOPR HERE")
 
     # Get the bucket that the file will be uploaded to.
-    bucket = gcp.get_bucket(bucketname)
+    bucket = gcp.get_bucket(bucket_name)
 
     # list files
     blobs = list(bucket.list_blobs())
     print(blobs)
 
-    message = 'test12'
+    message = 'test21'
     blob = bucket.blob(message)
     blob.upload_from_string(message)
 
@@ -70,13 +100,13 @@ def gcstest():
    # bucket.delete_blob('test123')
 
     #download file
-    blob2 = bucket.get_blob('test12')
+    blob2 = bucket.get_blob('test1235')
 
     blob2.download_to_filename(download_path)
     #blob2.download_to_file()
 
     # Create a new folder.
-    folder = 'a13/a14/'
+    folder = 'a16/a17/'
     blob1 = bucket.blob(folder)
     blob1.upload_from_string('')
 
@@ -87,6 +117,5 @@ def gcstest():
 
     #blob.delete('test12')
     #print('Blob {} deleted.'.format(blob_name))
-
 
 gcstest()

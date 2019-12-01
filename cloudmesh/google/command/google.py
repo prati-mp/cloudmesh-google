@@ -10,11 +10,9 @@ from cloudmesh.configuration.Config import Config
 from cloudmesh.common.util import banner
 from cloudmesh.common.util import readfile, writefile
 import json
-
-
+from cloudmesh.google.storage.Provider import Provider
 
 class GoogleCommand(PluginCommand):
-
     """
     STUDENT - gooes to google
     student download json google.json
@@ -43,9 +41,9 @@ class GoogleCommand(PluginCommand):
         ::
 
           Usage:
-                google yaml write FILE_JSON [--name=NAME]
+                google yaml write [FILE_JSON] [--name=NAME]
                 google yaml list [--name=NAME]
-                google yaml add FILE_JSON [--name=NAME]
+                google yaml add [FILE_JSON] [--name=NAME]
                 google list storage
 
           This command does some useful things.
@@ -65,14 +63,22 @@ class GoogleCommand(PluginCommand):
         name = arguments["--name"] or "google"
 
         if arguments.yaml and arguments.write:
-            print("Read the  specification from yaml and write to json file")
-            raise NotImplementedError
+            path = path_expand(arguments["FILE_JSON"] or "~/.cloudmesh/google.json")
+            name = arguments["--name"] or "google"
+
+            banner(f"Write the  credential  from {name}  to the json file {path}")
+
+
+            #    google yaml write FILE_JSON [--name=NAME]
+            Provider.yaml_to_json(name, filename=path)
+
 
         elif arguments.yaml and arguments.add:
             banner("Read the  specification from json and write to yaml file")
-            path = path_expand(arguments["FILE_JSON"])
-            name = arguments["--name"]
-            from cloudmesh.google.storage.Provider import Provider
+            path = path_expand(arguments["FILE_JSON"] or "~/.cloudmesh/google.json")
+
+            name = arguments["--name"] or "google"
+
 
             Provider.json_to_yaml(name, filename=path)
 
