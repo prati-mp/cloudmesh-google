@@ -230,6 +230,7 @@ class Provider(StorageABC):
     # bucket_name = "cloudmesh_gcp"
     # gcp = storage.Client.from_service_account_json(json_path)
 
+
     def get(self, source=None, destination=None, recursive=False):
 
         self.storage_dict['source'] = source  # src
@@ -249,7 +250,7 @@ class Provider(StorageABC):
             print('Failed to upload to ftp: ' + str(e))
 
     def put(self, source=None, destination=None, recursive=False):
-
+        """Uploads a file to the bucket."""
         print(self.bucket)
         self.storage_dict['action'] = 'get'
         self.storage_dict['source'] = source
@@ -259,6 +260,9 @@ class Provider(StorageABC):
         print(destination)
         blob = self.bucket.blob(destination)
         blob.upload_from_filename(path_expand(source))
+        print('File {} uploaded to {}.'.format(
+            path_expand(source),
+            destination))
 
     def list(self, source=None, dir_only=False, recursive=False):
 
@@ -271,10 +275,73 @@ class Provider(StorageABC):
         for blob in blobs:
             print(blob.name)
 
-    def delete(self, source=None):
+
+    def delete_blob(self, source=None):
+        """Deletes a blob from the bucket."""
         self.storage_dict['source'] = source
-        banner("delete an object in bucket")
-        self.bucket.delete_blob('source')
+        bucket = self.get_bucket(bucket_name)
+        blob = bucket.blob(source)
+        blob.delete()
+        print('Blob {} deleted.'.format(source))
+
+'''
+    def blob_metadata(bucket_name, blob_name):
+        """Prints out a blob's metadata."""
+        storage_client = storage.Client()
+        bucket = storage_client.get_bucket(bucket_name)
+        blob = bucket.get_blob(blob_name)
+
+        print('Blob: {}'.format(blob.name))
+        print('Bucket: {}'.format(blob.bucket.name))
+        print('Storage class: {}'.format(blob.storage_class))
+        print('ID: {}'.format(blob.id))
+        print('Size: {} bytes'.format(blob.size))
+        print('Updated: {}'.format(blob.updated))
+        print('Generation: {}'.format(blob.generation))
+        print('Metageneration: {}'.format(blob.metageneration))
+        print('Etag: {}'.format(blob.etag))
+        print('Owner: {}'.format(blob.owner))
+        print('Component count: {}'.format(blob.component_count))
+        print('Crc32c: {}'.format(blob.crc32c))
+        print('md5_hash: {}'.format(blob.md5_hash))
+        print('Cache-control: {}'.format(blob.cache_control))
+        print('Content-type: {}'.format(blob.content_type))
+        print('Content-disposition: {}'.format(blob.content_disposition))
+        print('Content-encoding: {}'.format(blob.content_encoding))
+        print('Content-language: {}'.format(blob.content_language))
+        print('Metadata: {}'.format(blob.metadata))
+        print("Temporary hold: ",
+              'enabled' if blob.temporary_hold else 'disabled')
+        print("Event based hold: ",
+              'enabled' if blob.event_based_hold else 'disabled')
+        if blob.retention_expiration_time:
+            print("retentionExpirationTime: {}"
+                  .format(blob.retention_expiration_time))
+
+    def rename_blob(bucket_name, blob_name, new_name):
+        """Renames a blob."""
+        storage_client = storage.Client()
+        bucket = storage_client.get_bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        new_blob = bucket.rename_blob(blob, new_name)
+
+        print('Blob {} has been renamed to {}'.format(
+            blob.name, new_blob.name))
+
+    def copy_blob(bucket_name, blob_name, new_bucket_name, new_blob_name):
+        """Copies a blob from one bucket to another with a new name."""
+        storage_client = storage.Client()
+        source_bucket = storage_client.get_bucket(bucket_name)
+        source_blob = source_bucket.blob(blob_name)
+        destination_bucket = storage_client.get_bucket(new_bucket_name)
+
+        new_blob = source_bucket.copy_blob(
+            source_blob, destination_bucket, new_blob_name)
+
+        print('Blob {} in bucket {} copied to blob {} in bucket {}.'.format(
+            source_blob.name, source_bucket.name, new_blob.name,
+            destination_bucket.name))
 
 
     # def list(self, service=None, sourceObj=None, recursive=False):
@@ -293,3 +360,4 @@ class Provider(StorageABC):
     #     raise NotImplementedError
     #
 
+'''
