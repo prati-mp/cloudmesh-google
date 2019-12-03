@@ -236,33 +236,56 @@ class Provider(StorageABC):
         self.storage_dict['source'] = source  # src
         self.storage_dict['destination'] = destination  # dest
         print(self.bucket)
-        print(source)
-        print(destination)
+        print("SSSSS", source)
+        print("DDDDD", destination)
+
         try:
             blob2 = self.bucket.get_blob(source)
+
             blob2.download_to_filename(path_expand(destination))
+
             print("Get module success")
+
             # objlist = [1,2,3]
             # dictObj = self.update_dict(self.storage_dict[objlist])
             # # return self.storage_dict
             # return dictObj
         except Exception as e:
-            print('Failed to upload to ftp: ' + str(e))
+            print('Failed to upload to ftp: ',  e)
+
+    def complete_local(self,directory):
+        if ":" not in directory:
+            return f"local:/{directory}" # remove leading / from directory first if its there now ther is stoll a bug as we do not do this
 
     def put(self, source=None, destination=None, recursive=False):
-        """Uploads a file to the bucket."""
+        """
+
+        :param source: cloud:directory directory on source
+        :param destination: cloud:directory
+        :param recursive:
+        :return:
+        """
+
         print(self.bucket)
-        self.storage_dict['action'] = 'get'
+        self.storage_dict['action'] = 'put'
         self.storage_dict['source'] = source
         self.storage_dict['destination'] = destination  # dest
+
         print(self.bucket)
         print(source)
         print(destination)
         blob = self.bucket.blob(destination)
-        blob.upload_from_filename(path_expand(source))
-        print('File {} uploaded to {}.'.format(
-            path_expand(source),
-            destination))
+        try:
+            blob.upload_from_filename(path_expand(source))
+        except IsADirectoryError:
+            Console.warning(f"NO need to create directories {destination}")
+        except Exception as e:
+            print(e.__class__.__name__)
+        # how do you do this in google
+
+        path = path_expand(source)
+        print(f'File {path} uploaded to {destination}')
+
 
     def list(self, source=None, dir_only=False, recursive=False):
 
