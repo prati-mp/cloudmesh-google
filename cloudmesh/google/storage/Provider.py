@@ -22,30 +22,7 @@ import json
 
 
 class Provider(StorageABC):
-    """
-    Provider class for local storage.
-    This class allows transfer of objects from local storage location to a
-    Azure blob storage container or gcp bucket.
 
-    Default parameters are read from ~/.cloudmesh/cloudmesh.yaml :
-
-    storage:
-        local:
-          cm:
-            azureblob: true
-            blobactive: true
-            heading: local_to_CSP
-            host: localhost
-            kind: local
-            label: local_storage
-            version: 0.1
-            service: storage
-          default:
-            directory: ~\cmStorage
-          credentials:
-            userid: None
-            password: None
-    """
 
     @staticmethod
     def json_to_yaml(name, filename="~/.cloudmesh/google.json"):
@@ -142,6 +119,94 @@ class Provider(StorageABC):
 
 
 
+
+
+
+
+    def get(self, source=None, destination=None, recursive=False):
+        self.storage_dict['source'] = source  # src
+        self.storage_dict['destination'] = destination  # dest
+        print(self.bucket)
+        print(source)
+        print(destination)
+        try:
+            print("====> bucket: ", self.bucket)
+            print("====> source: ", source)
+            print("===> type bucket: ", type(self.bucket))
+            blob2 = self.bucket.get_blob(source)
+            print("===> BLOB2 : ", blob2)
+            blob2.download_to_filename(path_expand(destination))
+            print("Get module success")
+            # objlist = [1,2,3]
+            # dictObj = self.update_dict(self.storage_dict[objlist])
+            # # return self.storage_dict
+            # return dictObj
+        except Exception as e:
+            print('Failed to upload to ftp: ' + str(e))
+
+
+    def put(self, source=None, destination=None, recursive=False):
+
+        print(self.bucket)
+        self.storage_dict['action'] = 'put'
+        self.storage_dict['source'] = source
+        self.storage_dict['destination'] = destination  # dest
+        print(self.bucket)
+        print(source)
+        print(destination)
+        blob = self.bucket.blob(destination)
+        blob.upload_from_filename(path_expand(source))
+
+
+    def list(self, source=None, dir_only=False, recursive=False):
+
+        self.storage_dict['source'] = source
+        print(self.bucket)
+        print(source)
+        blobs = self.client.list_blobs(self.bucket_name, prefix=source)
+        print('Blobs:')
+        print(blobs)
+        for blob in blobs:
+            print(blob.name)
+
+    def delete_blob(self, source=None):
+        """Deletes a blob from the bucket."""
+        print("Source=====>",source)
+        self.storage_dict['source'] = source
+        bucket = self.get_bucket(bucket_name)
+        blob = bucket.blob(source)
+        blob.delete()
+        print('Blob {} deleted.'.format(source))
+
+
+
+
+
+
+    # def test_list(self):
+    #     HEADING()
+    #     src = 'none'
+    #     StopWatch.start("list")
+    #     contents = provider.list(src)
+    #     StopWatch.stop("list")
+    #     for c in contents:
+    #         pprint(c)
+    #
+    #     assert len(contents) > 0
+
+    # def download_blob(bucket_name, source_blob_name, destination_file_name):
+    #     """Downloads a blob from the bucket."""
+    #     storage_client = storage.Client()
+    #     self.bucket = self.client.get_bucket(self.bucket_name)
+    #     blob = self.bucket.blob(source_blob_name)
+    #
+    #     blob.download_to_filename(destination_file_name)
+    #
+    #     print('Blob {} downloaded to {}.'.format(
+    #         source_blob_name,
+    #         destination_file_name))
+
+
     # def extract_file_dict(self, filename, metadata):
     #     # print(metadata)
     #     info = {
@@ -193,7 +258,7 @@ class Provider(StorageABC):
     #     blob1.upload_from_string('')
 
 
-
+'''
     def update_dict(self, elements, kind=None):
         # this is an internal function for building dict object
         d = []
@@ -229,8 +294,8 @@ class Provider(StorageABC):
     #
     # bucket_name = "cloudmesh_gcp"
     # gcp = storage.Client.from_service_account_json(json_path)
-
-
+'''
+'''
     def get(self, source=None, destination=None, recursive=False):
 
         self.storage_dict['source'] = source  # src
@@ -252,7 +317,12 @@ class Provider(StorageABC):
             # return dictObj
         except Exception as e:
             print('Failed to upload to ftp: ',  e)
+            
+'''
 
+
+
+'''
     def complete_local(self,directory):
         if ":" not in directory:
             return f"local:/{directory}" # remove leading / from directory first if its there now ther is stoll a bug as we do not do this
@@ -307,6 +377,7 @@ class Provider(StorageABC):
         blob.delete()
         print('Blob {} deleted.'.format(source))
 
+'''
 '''
     def blob_metadata(bucket_name, blob_name):
         """Prints out a blob's metadata."""
@@ -384,3 +455,4 @@ class Provider(StorageABC):
     #
 
 '''
+
