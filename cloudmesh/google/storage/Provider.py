@@ -19,6 +19,7 @@ from glob import glob
 import os
 import shutil
 import json
+import logging
 
 
 class Provider(StorageABC):
@@ -113,36 +114,35 @@ class Provider(StorageABC):
             self.path = path_expand("~/.cloudmesh/google.json")
             print("11111:",self.path)
             print("bucketName:", self.bucket_name)
-            self.client = storage.Client.from_service_account_json(self.path)
+            self.client = storage.Client.from_service_account_json(self.path) #Important for goole login
             self.storage_dict = {}
             self.bucket = self.client.get_bucket(self.bucket_name)
 
-
-
-
-
-
-
     def get(self, source=None, destination=None, recursive=False):
         self.storage_dict['source'] = source  # src
-        self.storage_dict['destination'] = destination  # dest
-        print(self.bucket)
-        print(source)
-        print(destination)
+        self.storage_dict['destination/{}'.format(source)] = destination
         try:
-            print("====> bucket: ", self.bucket)
-            print("====> source: ", source)
-            print("===> type bucket: ", type(self.bucket))
-            blob2 = self.bucket.get_blob(source)
-            print("===> BLOB2 : ", blob2)
-            blob2.download_to_filename(path_expand(destination))
-            print("Get module success")
-            # objlist = [1,2,3]
-            # dictObj = self.update_dict(self.storage_dict[objlist])
-            # # return self.storage_dict
-            # return dictObj
+            print("Local folder=====>",destination)
+            # Excluding any directory from the bucket.
+            #filter and list the files which need to download using Google Storage bucket.list_blobs function.
+            # List all objects that satisfy the filter.
+            delimiter = '/'
+            print("Google Bucket name =====>", self.bucket)
+            blobs = self.bucket.list_blobs(prefix=source, delimiter=delimiter)
+            print("Blobs in google bucket(files/folders) =====>", blobs)
+            if not os.path.exists(destination):
+                os.makedirs(destination)
+            for blob in blobs:
+                print("Blobs in loop =====>", blob.name)
+                logging.info('Blobs: {}'.format(blob.name))
+                destination_uri = '{}/{}'.format(destination,blob.name)
+                print("Destination URI=====>", destination_uri)
+                blob.download_to_filename(path_expand(destination_uri))
+                print(' Exported {}  to {} '.format(blob.name, destination_uri))
+
         except Exception as e:
             print('Failed to upload to ftp: ' + str(e))
+
 
 
     def put(self, source=None, destination=None, recursive=False):
@@ -169,60 +169,31 @@ class Provider(StorageABC):
         for blob in blobs:
             print(blob.name)
 
-    def delete_blob(self, source=None):
+
+    def delete(self, source=None):
         """Deletes a blob from the bucket."""
-        print("Source=====>",source)
         self.storage_dict['source'] = source
-        bucket = self.get_bucket(bucket_name)
-        blob = bucket.blob(source)
-        blob.delete()
-        print('Blob {} deleted.'.format(source))
+        print("Source=====>", source)
+        try:
+            blobs = self.bucket.list_blobs(prefix=source)
+            print("blobs=====>",blobs )
+            for blob in blobs:
+                print("Blobs in loop=====>", blob.name)
+                blob.delete()
+                print('Blob deleted {}'.format(blob.name))
+        except Exception as e:
+            print('Failed to delete blob at google bucket: ' + str(e))
 
-
-
-
-
-
-    # def test_list(self):
-    #     HEADING()
-    #     src = 'none'
-    #     StopWatch.start("list")
-    #     contents = provider.list(src)
-    #     StopWatch.stop("list")
-    #     for c in contents:
-    #         pprint(c)
-    #
-    #     assert len(contents) > 0
-
-    # def download_blob(bucket_name, source_blob_name, destination_file_name):
-    #     """Downloads a blob from the bucket."""
-    #     storage_client = storage.Client()
-    #     self.bucket = self.client.get_bucket(self.bucket_name)
-    #     blob = self.bucket.blob(source_blob_name)
-    #
-    #     blob.download_to_filename(destination_file_name)
-    #
-    #     print('Blob {} downloaded to {}.'.format(
-    #         source_blob_name,
-    #         destination_file_name))
-
-
-    # def extract_file_dict(self, filename, metadata):
-    #     # print(metadata)
-    #     info = {
-    #         "fileName": filename,
-    #         # "creationDate" : metadata['ResponseMetadata']['HTTPHeaders']['date'],
-    #         "lastModificationDate":
-    #             metadata['ResponseMetadata']['HTTPHeaders']['last-modified'],
-    #         "contentLength":
-    #             metadata['ResponseMetadata']['HTTPHeaders']['content-length']
-    #     }
-    #
-    # download_path = path_expand("~/.cloudmesh/download_file")
-    # json_path = path_expand("~/.cloudmesh/gcp.json")
-    #
-    # bucket_name = "cloudmesh_gcp"
-    # gcp = storage.Client.from_service_account_json(json_path)
+    def create_dir(self, directory=None):
+        self.storage_dict['directory'] = directory
+        print("Directory or folder =====>", directory)
+        try:
+            print("Create a directory/folder in bucket",self.bucket_name)
+            blob1 = self.bucket.blob(directory)
+            blob1.upload_from_string('')
+            print('{} '.format(blob1.name))
+        except Exception as e:
+            print('Failed to create directory at google bucket: ' + str(e))
 
 
     # def bucket_exists(self, name=None):
@@ -246,213 +217,3 @@ class Provider(StorageABC):
     #
     #
     #
-    # def create_dir(self, directory=None):
-    #     bucket = bucket_name
-    #     if not self.bucket_exists(name=bucket):
-    #         self.bucket_create(name=bucket)
-    #     banner("Create a dir in bucket")
-    #     # Create a new folder.
-    #     folder = directory
-    #     #folder = 'a169/a17/'
-    #     blob1 = bucket.blob(folder)
-    #     blob1.upload_from_string('')
-
-
-'''
-    def update_dict(self, elements, kind=None):
-        # this is an internal function for building dict object
-        d = []
-        print("1")
-        for element in elements:
-            # entry = element.__dict__
-            # entry = element['objlist']
-            entry = element
-            entry["cm"] = {
-                "kind": "google",
-                "cloud": self.cloud,
-                "name": entry['fileName']
-            }
-
-            # element.properties = element.properties.__dict__
-            d.append(entry)
-            print("2")
-        return d
-
-    def extract_file_dict(self, filename, metadata):
-        # print(metadata)
-        info = {
-            "fileName": filename,
-            # "creationDate" : metadata['ResponseMetadata']['HTTPHeaders']['date'],
-            "lastModificationDate":
-                metadata['ResponseMetadata']['HTTPHeaders']['last-modified'],
-            "contentLength":
-                metadata['ResponseMetadata']['HTTPHeaders']['content-length']
-        }
-
-    # download_path = path_expand("~/.cloudmesh/download_file")
-    # json_path = path_expand("~/.cloudmesh/gcp.json")
-    #
-    # bucket_name = "cloudmesh_gcp"
-    # gcp = storage.Client.from_service_account_json(json_path)
-'''
-'''
-    def get(self, source=None, destination=None, recursive=False):
-
-        self.storage_dict['source'] = source  # src
-        self.storage_dict['destination'] = destination  # dest
-        print(self.bucket)
-        print("SSSSS", source)
-        print("DDDDD", destination)
-
-        try:
-            blob2 = self.bucket.get_blob(source)
-
-            blob2.download_to_filename(path_expand(destination))
-
-            print("Get module success")
-
-            # objlist = [1,2,3]
-            # dictObj = self.update_dict(self.storage_dict[objlist])
-            # # return self.storage_dict
-            # return dictObj
-        except Exception as e:
-            print('Failed to upload to ftp: ',  e)
-            
-'''
-
-
-
-'''
-    def complete_local(self,directory):
-        if ":" not in directory:
-            return f"local:/{directory}" # remove leading / from directory first if its there now ther is stoll a bug as we do not do this
-
-    def put(self, source=None, destination=None, recursive=False):
-        """
-
-        :param source: cloud:directory directory on source
-        :param destination: cloud:directory
-        :param recursive:
-        :return:
-        """
-
-        print(self.bucket)
-        self.storage_dict['action'] = 'put'
-        self.storage_dict['source'] = source
-        self.storage_dict['destination'] = destination  # dest
-
-        print(self.bucket)
-        print(source)
-        print(destination)
-        blob = self.bucket.blob(destination)
-        try:
-            blob.upload_from_filename(path_expand(source))
-        except IsADirectoryError:
-            Console.warning(f"NO need to create directories {destination}")
-        except Exception as e:
-            print(e.__class__.__name__)
-        # how do you do this in google
-
-        path = path_expand(source)
-        print(f'File {path} uploaded to {destination}')
-
-
-    def list(self, source=None, dir_only=False, recursive=False):
-
-        self.storage_dict['source'] = source
-        print(self.bucket)
-        print(source)
-        blobs = self.client.list_blobs(self.bucket_name, prefix=source)
-        print('Blobs:')
-        print(blobs)
-        for blob in blobs:
-            print(blob.name)
-
-
-    def delete_blob(self, source=None):
-        """Deletes a blob from the bucket."""
-        self.storage_dict['source'] = source
-        bucket = self.get_bucket(bucket_name)
-        blob = bucket.blob(source)
-        blob.delete()
-        print('Blob {} deleted.'.format(source))
-
-'''
-'''
-    def blob_metadata(bucket_name, blob_name):
-        """Prints out a blob's metadata."""
-        storage_client = storage.Client()
-        bucket = storage_client.get_bucket(bucket_name)
-        blob = bucket.get_blob(blob_name)
-
-        print('Blob: {}'.format(blob.name))
-        print('Bucket: {}'.format(blob.bucket.name))
-        print('Storage class: {}'.format(blob.storage_class))
-        print('ID: {}'.format(blob.id))
-        print('Size: {} bytes'.format(blob.size))
-        print('Updated: {}'.format(blob.updated))
-        print('Generation: {}'.format(blob.generation))
-        print('Metageneration: {}'.format(blob.metageneration))
-        print('Etag: {}'.format(blob.etag))
-        print('Owner: {}'.format(blob.owner))
-        print('Component count: {}'.format(blob.component_count))
-        print('Crc32c: {}'.format(blob.crc32c))
-        print('md5_hash: {}'.format(blob.md5_hash))
-        print('Cache-control: {}'.format(blob.cache_control))
-        print('Content-type: {}'.format(blob.content_type))
-        print('Content-disposition: {}'.format(blob.content_disposition))
-        print('Content-encoding: {}'.format(blob.content_encoding))
-        print('Content-language: {}'.format(blob.content_language))
-        print('Metadata: {}'.format(blob.metadata))
-        print("Temporary hold: ",
-              'enabled' if blob.temporary_hold else 'disabled')
-        print("Event based hold: ",
-              'enabled' if blob.event_based_hold else 'disabled')
-        if blob.retention_expiration_time:
-            print("retentionExpirationTime: {}"
-                  .format(blob.retention_expiration_time))
-
-    def rename_blob(bucket_name, blob_name, new_name):
-        """Renames a blob."""
-        storage_client = storage.Client()
-        bucket = storage_client.get_bucket(bucket_name)
-        blob = bucket.blob(blob_name)
-
-        new_blob = bucket.rename_blob(blob, new_name)
-
-        print('Blob {} has been renamed to {}'.format(
-            blob.name, new_blob.name))
-
-    def copy_blob(bucket_name, blob_name, new_bucket_name, new_blob_name):
-        """Copies a blob from one bucket to another with a new name."""
-        storage_client = storage.Client()
-        source_bucket = storage_client.get_bucket(bucket_name)
-        source_blob = source_bucket.blob(blob_name)
-        destination_bucket = storage_client.get_bucket(new_bucket_name)
-
-        new_blob = source_bucket.copy_blob(
-            source_blob, destination_bucket, new_blob_name)
-
-        print('Blob {} in bucket {} copied to blob {} in bucket {}.'.format(
-            source_blob.name, source_bucket.name, new_blob.name,
-            destination_bucket.name))
-
-
-    # def list(self, service=None, sourceObj=None, recursive=False):
-    #     raise NotImplementedError
-    #
-    # def delete(self, service="local", sourceObj=None, recursive=False):
-    #     raise NotImplementedError
-    #
-    # def put(self, source=None, destination=None, recursive=False):
-    #     raise NotImplementedError
-    #
-    # def get(self, source=None, destination=None, recursive=False):
-    #     raise NotImplementedError
-    #
-    # def search(self, directory=None, filename=None, recursive=False):
-    #     raise NotImplementedError
-    #
-
-'''
-
