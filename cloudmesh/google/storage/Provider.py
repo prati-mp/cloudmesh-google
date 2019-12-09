@@ -11,7 +11,7 @@ from cloudmesh.common.console import Console
 from cloudmesh.common.util import banner, path_expand, writefile, readfile
 from cloudmesh.common.Printer import Printer
 from cloudmesh.configuration.Config import Config
-
+from cloudmesh.common.variables import Variables
 from google.cloud import storage
 
 from pathlib import Path
@@ -97,6 +97,8 @@ class Provider(StorageABC):
                  json=None,
                  **kwargs):
         super().__init__(service=service, config=config)
+        variables=Variables()
+        self.debug=variables['debug']
 
 
 
@@ -120,28 +122,34 @@ class Provider(StorageABC):
 
     def get(self, source=None, destination=None, recursive=False):
         self.storage_dict['source'] = source  # src
-        self.storage_dict['destination/{}'.format(source)] = destination
+        self.storage_dict[f'destination/{source}'] = destination
+
+        if self.debug:
+            print ("GET")
+            print (f"Source {self.bucket}:{source}")
+            print(f"Destination local:{destination}")
+
+
         try:
-            print("Local folder=====>",destination)
             # Excluding any directory from the bucket.
             #filter and list the files which need to download using Google Storage bucket.list_blobs function.
             # List all objects that satisfy the filter.
             delimiter = '/'
-            print("Google Bucket name =====>", self.bucket)
             blobs = self.bucket.list_blobs(prefix=source, delimiter=delimiter)
-            print("Blobs in google bucket(files/folders) =====>", blobs)
+            if self.debug:
+                print("Blobs in google bucket(files/folders):", blobs)
             if not os.path.exists(destination):
                 os.makedirs(destination)
             for blob in blobs:
-                print("Blobs in loop =====>", blob.name)
-                logging.info('Blobs: {}'.format(blob.name))
-                destination_uri = '{}/{}'.format(destination,blob.name)
-                print("Destination URI=====>", destination_uri)
+                destination_uri = f'{destination}/{blob.name}'
+
+                logging.info(f'Blobs: {blob.name}')
+                print(f'{blob.name} ->  {destination_uri}. downloading. ', end='')
                 blob.download_to_filename(path_expand(destination_uri))
-                print(' Exported {}  to {} '.format(blob.name, destination_uri))
+                print('ok.')
 
         except Exception as e:
-            print('Failed to upload to ftp: ' + str(e))
+            print('Failed to download : ' + str(e))
 
 
 
@@ -156,7 +164,7 @@ class Provider(StorageABC):
         print(destination)
         blob = self.bucket.blob(destination)
         blob.upload_from_filename(path_expand(source))
-
+        print(f'File {source} uploaded to {destination}.'.format(source, destination))
 
     def list(self, source=None, dir_only=False, recursive=False):
 
@@ -194,6 +202,46 @@ class Provider(StorageABC):
             print('{} '.format(blob1.name))
         except Exception as e:
             print('Failed to create directory at google bucket: ' + str(e))
+
+
+    def blob_metadata(self, blob_name=None):
+        """Prints out a blob's metadata."""
+        self.storage_dict['blob_name'] = blob_name
+        print("blob_name  =====>", blob_name)
+        try:
+            print("Bucket:  ", self.bucket)
+            blob = self.bucket.get_blob(blob_name)
+            print("blob :", blob)
+
+            print('Blob: {}'.format(blob.name))
+            print('Bucket: {}'.format(blob.bucket.name))
+            print('Storage class: {}'.format(blob.storage_class))
+            print('ID: {}'.format(blob.id))
+            print('Size: {} bytes'.format(blob.size))
+            print('Updated: {}'.format(blob.updated))
+            print('Generation: {}'.format(blob.generation))
+            print('Metageneration: {}'.format(blob.metageneration))
+            print('Etag: {}'.format(blob.etag))
+            print('Owner: {}'.format(blob.owner))
+            print('Component count: {}'.format(blob.component_count))
+            print('Crc32c: {}'.format(blob.crc32c))
+            print('md5_hash: {}'.format(blob.md5_hash))
+            print('Cache-control: {}'.format(blob.cache_control))
+            print('Content-type: {}'.format(blob.content_type))
+            print('Content-disposition: {}'.format(blob.content_disposition))
+            print('Content-encoding: {}'.format(blob.content_encoding))
+            print('Content-language: {}'.format(blob.content_language))
+            print('Metadata: {}'.format(blob.metadata))
+            print("Temporary hold: ",
+                  'enabled' if blob.temporary_hold else 'disabled')
+            print("Event based hold: ",
+                  'enabled' if blob.event_based_hold else 'disabled')
+            if blob.retention_expiration_time:
+                print("retentionExpirationTime: {}".format(blob.retention_expiration_time))
+
+        except Exception as e:
+            print('Failed to find blob metadata : ' + str(e))
+
 
 
     # def bucket_exists(self, name=None):
