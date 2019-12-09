@@ -39,6 +39,7 @@ provider = None
 config = None
 bucket = None
 
+
 def run(cmd):
     StopWatch.start(cmd)
     result = runcommand(cmd)
@@ -133,8 +134,8 @@ class TestStorage(object):
 
         # src = "storage_a:test/a/a.txt"
 
-        src = "~/.cloudmesh/storage/test/download_file1"
-        dst = "download_file1"
+        src = path_expand("~/.cloudmesh/storage/test/google_test/atest.txt")
+        dst = "a169/a17/atest.txt"
         StopWatch.start("put")
         test_file = provider.put(src, dst)
         StopWatch.stop("put")
@@ -167,8 +168,8 @@ class TestStorage(object):
 
     def test_get(self):
         HEADING()
-        src = "test21"
-        dst = "~/.cloudmesh/storage/test/download_file1"
+        src = "test"
+        dst = "~/.cloudmesh/storage/test/google_test"
         StopWatch.start("get")
         file = provider.get(src, dst)
         StopWatch.stop("get")
@@ -217,23 +218,34 @@ class TestStorage(object):
     #     assert len(search_files) > 0
     #     # assert filename in search_files[0]['cm']["name"]
     #
-    # def test_create_dir(self):
-    #     HEADING()
-    #     src = 'created_dir'
-    #     StopWatch.start("create dir")
-    #     directory = provider.create_dir(src)
-    #     StopWatch.stop("create dir")
-    #
-    #     pprint(directory)
-    #
-    #     assert directory is not None
+    def test_create_dir(self):
+        HEADING()
+        src = 'created_dir01/'
+        StopWatch.start("create dir")
+        directory = provider.create_dir(src)
+        StopWatch.stop("create dir")
+
+        pprint(directory)
+
+        assert directory is not None
     #
     def test_delete(self):
         HEADING()
-        src = 'a13'
+        src = 'top_folder5/sub_folder7/'
         StopWatch.start("delete")
         provider.delete(src)
         StopWatch.stop("delete")
+
+    def test_blob_metadata(self):
+        HEADING()
+        blob_name = 'a10/atest.txt'
+        StopWatch.start("test_blob_metadata")
+        provider.blob_metadata(blob_name)
+        StopWatch.stop("test_blob_metadata")
+
+    # blob_metadata(f'{bucket_name}', 'a10/atest.txt')
+
+
     #
     def test_benchmark(self):
         Benchmark.print(sysinfo=False, csv=True, tag=cloud)
