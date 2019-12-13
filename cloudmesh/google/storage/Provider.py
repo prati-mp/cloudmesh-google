@@ -242,7 +242,21 @@ class Provider(StorageABC):
         except Exception as e:
             print('Failed to find blob metadata : ' + str(e))
 
-
+            """Renames a blob."""
+    def rename_blob(self, blob_name=None, new_name=None):
+        self.storage_dict['blob_name'] = blob_name
+        self.storage_dict['new_name'] = new_name
+        print("blob_name  =====>", blob_name)
+        print("new_name  =====>", new_name)
+        try:
+            print("Bucket:  ", self.bucket)
+            blob = self.bucket.blob(blob_name)
+            print("blob:  ", blob)
+            new_blob = self.bucket.rename_blob(blob, new_name)
+            print("new blob:  ", new_blob)
+            print(f'Blob {blob_name} has been renamed to {new_blob}'.format(blob.name, new_blob.name))
+        except Exception as e:
+            print('Failed to rename blob  : ' + str(e))
 
     # def bucket_exists(self, name=None):
     #      bucket = gcp.get_bucket(name)
