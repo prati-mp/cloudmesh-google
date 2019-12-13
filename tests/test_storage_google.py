@@ -2,6 +2,7 @@
 # pytest -v --capture=no tests/test_storage.py
 # pytest -v  tests/test_storage.py
 # pytest -v --capture=no tests/test_storage.py::TestStorage::<METHIDNAME>
+# pytest -x -v --capture=no tests/test_storage_google.py
 ###############################################################
 import os
 from pathlib import Path
@@ -87,18 +88,6 @@ class TestStorage(object):
         config = Config()
         bucket=config[f'cloudmesh.storage.{cloud}.default.directory']
 
-    # def test_list(self):
-    #     HEADING()
-    #     src = '/'
-    #     StopWatch.start("list")
-    #     contents = provider.list(src)
-    #     StopWatch.stop("list")
-    #     for c in contents:
-    #         pprint(c)
-    #
-    #     assert len(contents) > 0
-
-
 
     def create_local_file(self, location, content):
         d = Path(os.path.dirname(path_expand(location)))
@@ -109,66 +98,47 @@ class TestStorage(object):
 
         writefile(path_expand(location), content)
 
-    # def test_create_local_source(self):
-    #     HEADING()
-    #     StopWatch.start("create source")
-    #     self.sourcedir = path_expand("~/.cloudmesh/storage/test/")
-    #     self.create_local_file("~/.cloudmesh/storage/test/a/a.txt", "content of a")
-    #     self.create_local_file("~/.cloudmesh/storage/test/a/b/b.txt", "content of b")
-    #     self.create_local_file("~/.cloudmesh/storage/test/a/b/c/c.txt",
-    #                            "content of c")
-    #     StopWatch.stop("create source")
-    #
-    #     # test if the files are ok
-    #     assert True
+    def test_create_local_source(self):
+        HEADING()
+        StopWatch.start("create source")
+        self.sourcedir = path_expand("~/.cloudmesh/storage/test/")
+        self.create_local_file("~/.cloudmesh/storage/test/a/a.txt", "content of a")
+        self.create_local_file("~/.cloudmesh/storage/test/a/b/b.txt", "content of b")
+        self.create_local_file("~/.cloudmesh/storage/test/a/b/c/c.txt",
+                               "content of c")
+        StopWatch.stop("create source")
+
+        # test if the files are ok
+        assert True
+
+    def test_create_dir(self):
+        HEADING()
+        src = 'a/b/'
+        StopWatch.start("create dir ")
+        directory = provider.create_dir(src)
+        StopWatch.stop("create dir ")
+
+        pprint(directory)
+
+        assert directory is not None
 
     def test_put(self):
         HEADING()
-
-        # root="~/.cloudmesh"
-        # src = "storage/test/a/a.txt"
-
-        # src = f"local:{src}"
-        # dst = f"aws:{src}"
-        # test_file = self.p.put(src, dst)
-
-        # src = "storage_a:test/a/a.txt"
-
-        src = path_expand("~/.cloudmesh/storage/test/google_test/atest.txt")
-        dst = "a169/a17/atest.txt"
+        src = path_expand("~/.cloudmesh/storage/test/a/a.txt")
+        src = f"{src}"
+        dst = 'a/a.txt'
         StopWatch.start("put")
         test_file = provider.put(src, dst)
         StopWatch.stop("put")
-
         pprint(test_file)
 
         assert test_file is not None
 
-    # def test_put_recursive(self):
-    #     HEADING()
-    #
-    #     # root="~/.cloudmesh"
-    #     # src = "storage/test/a/a.txt"
-    #
-    #     # source = f"local:{src}"
-    #     # destination = f"aws:{src}"
-    #     # test_file = self.p.put(src, dst)
-    #
-    #     # src = "storage_a:test/a/a.txt"
-    #
-    #     src = "~/.cloudmesh/storage/test/"
-    #     dst = '/'
-    #     StopWatch.start("put")
-    #     test_file = provider.put(src, dst, True)
-    #     StopWatch.stop("put")
-    #
-    #     pprint(test_file)
-    #
-    #     assert test_file is not None
 
     def test_get(self):
         HEADING()
-        src = "test"
+
+        src = "a"
         dst = "~/.cloudmesh/storage/test/google_test"
         StopWatch.start("get")
         file = provider.get(src, dst)
@@ -184,68 +154,45 @@ class TestStorage(object):
         contents = provider.list(src)
         StopWatch.stop("list")
 
-    def test_list_blob(self):
+    def test_list_blob_keyword(self):
         HEADING()
-        src = 'a10'
+        src = 'a'
         StopWatch.start("list")
         contents = provider.list(src)
         StopWatch.stop("list")
-        # for c in contents:
-        #     pprint(c)
-        #
-        # assert len(contents) > 0
-    #
-    # def test_list_dir_only(self):
-    #     HEADING()
-    #     src = '/'
-    #     dir = "a"
-    #     StopWatch.start("list")
-    #     contents = provider.list(src, dir, True)
-    #     StopWatch.stop("list")
-    #     for c in contents:
-    #         pprint(c)
-    #
-    #     assert len(contents) > 0
-    #
-    # def test_search(self):
-    #     HEADING()
-    #     src = '/'
-    #     filename = "a.txt"
-    #     StopWatch.start("search")
-    #     search_files = provider.search(src, filename, True)
-    #     StopWatch.stop("search")
-    #     pprint(search_files)
-    #     assert len(search_files) > 0
-    #     # assert filename in search_files[0]['cm']["name"]
-    #
-    def test_create_dir(self):
-        HEADING()
-        src = 'created_dir01/'
-        StopWatch.start("create dir")
-        directory = provider.create_dir(src)
-        StopWatch.stop("create dir")
 
-        pprint(directory)
-
-        assert directory is not None
-    #
     def test_delete(self):
         HEADING()
         src = 'top_folder5/sub_folder7/'
+        provider.create_dir(src)
+
         StopWatch.start("delete")
         provider.delete(src)
         StopWatch.stop("delete")
 
     def test_blob_metadata(self):
         HEADING()
-        blob_name = 'a10/atest.txt'
+        from cloudmesh.google.storage.Provider import Provider
+        provider = Provider(service=cloud)
+        blob_name = 'a/a.txt'
         StopWatch.start("test_blob_metadata")
         provider.blob_metadata(blob_name)
         StopWatch.stop("test_blob_metadata")
 
     # blob_metadata(f'{bucket_name}', 'a10/atest.txt')
 
+    def test_rename_blob(self):
+        HEADING()
+        from cloudmesh.google.storage.Provider import Provider
+        provider = Provider(service=cloud)
+        blob_name = 'top_folder11/sub_folder7/test2'
+        provider.create_dir(blob_name)
+        new_name = 'top_folder11/sub_folder7/test2_new'
+        StopWatch.start("test_rename_blob")
+        provider.rename_blob(blob_name,new_name)
+        StopWatch.stop("test_rename_blob")
 
+# rename_blob(f'{bucket_name}', '{blob_name}', '{new_name}')
     #
     def test_benchmark(self):
         Benchmark.print(sysinfo=False, csv=True, tag=cloud)
