@@ -1,4 +1,6 @@
 ###############################################################
+# cms set cloud=google
+# cms set storage=google
 # pytest -v --capture=no tests/test_storage.py
 # pytest -v  tests/test_storage.py
 # pytest -v --capture=no tests/test_storage.py::TestStorage::<METHIDNAME>
@@ -48,7 +50,7 @@ def run(cmd):
     print(result)
     return result
 
-
+#You can remove quotes in order to test credentials
 @pytest.mark.incremental
 class TestStorage(object):
     '''
@@ -192,7 +194,34 @@ class TestStorage(object):
         provider.rename_blob(blob_name,new_name)
         StopWatch.stop("test_rename_blob")
 
-# rename_blob(f'{bucket_name}', '{blob_name}', '{new_name}')
+    # rename_blob(f'{bucket_name}', '{blob_name}', '{new_name}')
+
+    def test_copy_blob_btw_buckets(self):
+        HEADING()
+        from cloudmesh.google.storage.Provider import Provider
+        provider = Provider(service=cloud)
+        blob_name = 'a/a.txt'
+        bucket_name_dest = 'cloudmesh_gcp2'
+        blob_name_dest = 'a/a.txt'
+        StopWatch.start("test_copy_blob_btw_buckets")
+        provider.copy_blob_btw_buckets(blob_name, bucket_name_dest, blob_name_dest)
+        StopWatch.stop("test_copy_blob_btw_buckets")
+
+    # copy_blob(f'{bucket_name}', 'download_file1', 'my-new-bucket_shre', 'a1692_new/a18_new')
+
+    def test_create_bucket(self):
+        HEADING()
+        from cloudmesh.google.storage.Provider import Provider
+        provider = Provider(service=cloud)
+        new_bucket_name = 'cloudmesh_gcp2'
+        StopWatch.start("test_create_bucket_google")
+        provider.create_bucket(new_bucket_name)
+        StopWatch.stop("test_create_bucket_google")
+
+
+
     #
     def test_benchmark(self):
         Benchmark.print(sysinfo=False, csv=True, tag=cloud)
+
+
