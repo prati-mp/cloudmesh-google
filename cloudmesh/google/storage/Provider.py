@@ -121,6 +121,15 @@ class Provider(StorageABC):
             self.bucket = self.client.get_bucket(self.bucket_name)
 
     def get(self, source=None, destination=None, recursive=False):
+        """
+         Downloads(get) the source(bucket blob) to local storage
+         :param service: the name of the service in the yaml file
+         :param source: the source which either can be a directory or file
+         :param destination: the destination which either can be a directory or file
+         :return: dict
+
+         """
+
         self.storage_dict['source'] = source  # src
         self.storage_dict[f'destination/{source}'] = destination
 
@@ -153,8 +162,15 @@ class Provider(StorageABC):
 
 
 
-    def put(self, source=None, destination=None, recursive=False):
+    def put(self, source=None, destination=None, recursive=None ):
+        """
+        Uploads(puts) the source(local) to the destination service bucket
+        :param service: the name of the service in the yaml file
+        :param source: the source which either can be a directory or file
+        :param destination: the destination which either can be a directory or file
+        :return: dict
 
+        """
         print(self.bucket)
         self.storage_dict['action'] = 'put'
         self.storage_dict['source'] = source
@@ -170,6 +186,12 @@ class Provider(StorageABC):
             print('Failed to upload blob at google bucket: ' + str(e))
 
     def list(self, source=None, dir_only=False, recursive=False):
+        """
+        Lists the source: google bucket blob(s) with and without prefix
+        :param source: the source which either can be a directory or file (either provide fill path or a prefix)
+        :return: dict
+
+        """
 
         self.storage_dict['source'] = source
         print("Bucket: ",self.bucket)
@@ -185,7 +207,13 @@ class Provider(StorageABC):
             print('Failed to list blobs from google bucket: ' + str(e))
 
     def delete(self, source=None):
-        """Deletes a blob from the bucket."""
+
+        """
+        Deletes a blob from the bucket.
+        :param source: Enter the blob name at google bucket you like to delete
+        :return: dict
+
+        """
         self.storage_dict['source'] = source
         # print("Source=====>", source)
         try:
@@ -200,6 +228,13 @@ class Provider(StorageABC):
 
 
     def create_dir(self, directory=None):
+        """
+        Creates a directory or folder at google bucket.
+        :param directory: Enter the directory structure  you like to create at google bucket
+        :return: dict
+
+        """
+
         self.storage_dict['directory'] = directory
         print("Provided Directory or folder : ", directory)
         try:
@@ -212,7 +247,13 @@ class Provider(StorageABC):
 
 
     def blob_metadata(self, blob_name=None):
-        """Prints out a blob's metadata."""
+        """
+        Prints out a blob's metadata.
+        :param blob_name: Enter the blob name with full path at google bucket you like to get metadata
+        :return: dict
+
+        """
+
         self.storage_dict['blob_name'] = blob_name
         try:
             print('Bucket : {} '.format(self.bucket.name))
@@ -248,7 +289,14 @@ class Provider(StorageABC):
 
 
     def rename_blob(self, blob_name=None, new_name=None):
-        """Renames a blob"""
+        """
+        Renames a blob at google bucket
+        :param blob_name: Enter the existing blob name with full path at google bucket
+        :param new_name: Enter the new blob name with full path at google bucket you like to rename
+        :return: dict
+
+        """
+
         self.storage_dict['blob_name'] = blob_name
         self.storage_dict['new_name'] = new_name
         # print("original blob_name :", blob_name)
@@ -265,7 +313,12 @@ class Provider(StorageABC):
 
 
     def create_bucket(self,new_bucket_name=None):
-        """Creates a new bucket, only used for creating new bucket"""
+        """
+        Creates a new bucket, only used for creating new bucket
+        :param new_bucket_name: Enter the name of new bucket yoy like to create at google cloud
+        :return: dict
+
+        """
         self.storage_dict['new_bucket_name'] = new_bucket_name
         try:
             bucket_new = self.client.create_bucket(new_bucket_name)
@@ -275,7 +328,14 @@ class Provider(StorageABC):
 
 
     def copy_blob_btw_buckets(self, blob_name, bucket_name_dest, blob_name_dest):
-        """Copies a blob from one bucket to another with a new name."""
+        """
+        Copies a blob from one bucket to another with a new name.
+        :param blob_name: Enter the blob name with full path at google bucket you like to copy
+        :param bucket_name_dest: Enter the destination google cloud bucket name you like to copy blob
+        :param blob_name_dest: Enter the new destination blob name with full path at destination google bucket
+        :return: dict
+
+        """
         self.storage_dict['blob_name'] = blob_name
         self.storage_dict['bucket_name_dest'] = bucket_name_dest
         self.storage_dict['blob_name_dest'] = blob_name_dest
