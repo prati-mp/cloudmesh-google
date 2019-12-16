@@ -1,20 +1,15 @@
-from __future__ import print_function
-from cloudmesh.shell.command import command
-from cloudmesh.shell.command import PluginCommand
-from cloudmesh.google.api.manager import Manager
-from cloudmesh.common.console import Console
-from cloudmesh.common.util import path_expand
 from pprint import pprint
-from cloudmesh.common.debug import VERBOSE
-from cloudmesh.configuration.Config import Config
 from cloudmesh.common.util import banner
-from cloudmesh.common.util import readfile, writefile
-import json
+from cloudmesh.common.util import path_expand
+from cloudmesh.configuration.Config import Config
 from cloudmesh.google.storage.Provider import Provider
+from cloudmesh.shell.command import PluginCommand
+from cloudmesh.shell.command import command
+
 
 class GoogleCommand(PluginCommand):
     """
-    STUDENT - gooes to google
+    STUDENT - goes to google
     student download json google.json
     student does
 
@@ -23,7 +18,7 @@ class GoogleCommand(PluginCommand):
             cloudmesh.storage.NAME
 
     content gets written into yaml file
-    woudl you like to delete the file google.json (y)
+    would you like to delete the file google.json (y)
 
     student say
 
@@ -58,8 +53,6 @@ class GoogleCommand(PluginCommand):
 
         """
 
-        VERBOSE(arguments)
-
         name = arguments["--name"] or "google"
 
         if arguments.yaml and arguments.write:
@@ -68,10 +61,8 @@ class GoogleCommand(PluginCommand):
 
             banner(f"Write the  credential  from {name}  to the json file {path}")
 
-
             #    google yaml write FILE_JSON [--name=NAME]
             Provider.yaml_to_json(name, filename=path)
-
 
         elif arguments.yaml and arguments.add:
             banner("Read the  specification from json and write to yaml file")
@@ -79,10 +70,7 @@ class GoogleCommand(PluginCommand):
 
             name = arguments["--name"] or "google"
 
-
             Provider.json_to_yaml(name, filename=path)
-
-
 
         elif arguments.list and arguments.storage:
             print("List all google storage providers")
@@ -103,7 +91,6 @@ class GoogleCommand(PluginCommand):
 
             credentials = config[f"cloudmesh.storage.{name}.credentials"]
             pprint(credentials)
-
 
         else:
             raise NotImplementedError
