@@ -114,13 +114,22 @@ class Provider(StorageABC):
             self.bucket_name = self.config[f"cloudmesh.storage.{service}.default.directory"]
            # self.yaml_to_json(service)
             self.path = path_expand("~/.cloudmesh/google.json")
-            print("11111:",self.path)
-            print("bucketName:", self.bucket_name)
+            #print("11111:",self.path)
+            #print("bucketName:", self.bucket_name)
             self.client = storage.Client.from_service_account_json(self.path) #Important for goole login
             self.storage_dict = {}
             self.bucket = self.client.get_bucket(self.bucket_name)
 
     def get(self, source=None, destination=None, recursive=False):
+        """
+         Downloads(get) the source(bucket blob) to local storage
+         :param service: the name of the service in the yaml file
+         :param source: the source which either can be a directory or file
+         :param destination: the destination which either can be a directory or file
+         :return: dict
+
+         """
+
         self.storage_dict['source'] = source  # src
         self.storage_dict[f'destination/{source}'] = destination
 
@@ -153,66 +162,103 @@ class Provider(StorageABC):
 
 
 
-    def put(self, source=None, destination=None, recursive=False):
+    def put(self, source=None, destination=None, recursive=None ):
+        """
+        Uploads(puts) the source(local) to the destination service bucket
+        :param service: the name of the service in the yaml file
+        :param source: the source which either can be a directory or file
+        :param destination: the destination which either can be a directory or file
+        :return: dict
 
+        """
         print(self.bucket)
         self.storage_dict['action'] = 'put'
         self.storage_dict['source'] = source
         self.storage_dict['destination'] = destination  # dest
-        print(self.bucket)
-        print(source)
-        print(destination)
-        blob = self.bucket.blob(destination)
-        blob.upload_from_filename(path_expand(source))
-        print(f'File {source} uploaded to {destination}.'.format(source, destination))
+        try:
+            print("Bucket: ",self.bucket)
+            print("Source: ",source)
+            print("Destination: ",destination)
+            blob = self.bucket.blob(destination)
+            blob.upload_from_filename(path_expand(source))
+            print(f'File {source} uploaded to {destination}.'.format(source, destination))
+        except Exception as e:
+            print('Failed to upload blob at google bucket: ' + str(e))
 
     def list(self, source=None, dir_only=False, recursive=False):
+        """
+        Lists the source: google bucket blob(s) with and without prefix
+        :param source: the source which either can be a directory or file (either provide fill path or a prefix)
+        :return: dict
+
+        """
 
         self.storage_dict['source'] = source
-        print(self.bucket)
-        print(source)
-        blobs = self.client.list_blobs(self.bucket_name, prefix=source)
-        print('Blobs:')
-        print(blobs)
-        for blob in blobs:
-            print(blob.name)
+        print("Bucket: ",self.bucket)
+        print("Source keyword: ",source)
+        try:
 
+            blobs = self.client.list_blobs(self.bucket_name, prefix=source)
+            print('Blobs: ')
+            print(blobs)
+            for blob in blobs:
+                print(blob.name)
+        except Exception as e:
+            print('Failed to list blobs from google bucket: ' + str(e))
 
     def delete(self, source=None):
-        """Deletes a blob from the bucket."""
+
+        """
+        Deletes a blob from the bucket.
+        :param source: Enter the blob name at google bucket you like to delete
+        :return: dict
+
+        """
         self.storage_dict['source'] = source
-        print("Source=====>", source)
+        # print("Source=====>", source)
         try:
             blobs = self.bucket.list_blobs(prefix=source)
-            print("blobs=====>",blobs )
+            # print("blobs=====>",blobs )
             for blob in blobs:
-                print("Blobs in loop=====>", blob.name)
+                # print("Blobs in loop : ", blob.name)
                 blob.delete()
                 print('Blob deleted {}'.format(blob.name))
         except Exception as e:
             print('Failed to delete blob at google bucket: ' + str(e))
 
+
     def create_dir(self, directory=None):
+        """
+        Creates a directory or folder at google bucket.
+        :param directory: Enter the directory structure  you like to create at google bucket
+        :return: dict
+
+        """
+
         self.storage_dict['directory'] = directory
-        print("Directory or folder =====>", directory)
+        print("Provided Directory or folder : ", directory)
         try:
-            print("Create a directory/folder in bucket",self.bucket_name)
+            # print("Create a directory or folder in bucket ",self.bucket_name)
             blob1 = self.bucket.blob(directory)
             blob1.upload_from_string('')
-            print('{} '.format(blob1.name))
+            print('directory or folder name : {} '.format(blob1.name))
         except Exception as e:
             print('Failed to create directory at google bucket: ' + str(e))
 
 
     def blob_metadata(self, blob_name=None):
-        """Prints out a blob's metadata."""
-        self.storage_dict['blob_name'] = blob_name
-        print("blob_name  =====>", blob_name)
-        try:
-            print("Bucket:  ", self.bucket)
-            blob = self.bucket.get_blob(blob_name)
-            print("blob :", blob)
+        """
+        Prints out a blob's metadata.
+        :param blob_name: Enter the blob name with full path at google bucket you like to get metadata
+        :return: dict
 
+        """
+
+        self.storage_dict['blob_name'] = blob_name
+        try:
+            print('Bucket : {} '.format(self.bucket.name))
+            blob = self.bucket.get_blob(blob_name)
+            # print("blob  : ", blob)
             print('Blob: {}'.format(blob.name))
             print('Bucket: {}'.format(blob.bucket.name))
             print('Storage class: {}'.format(blob.storage_class))
@@ -238,13 +284,79 @@ class Provider(StorageABC):
                   'enabled' if blob.event_based_hold else 'disabled')
             if blob.retention_expiration_time:
                 print("retentionExpirationTime: {}".format(blob.retention_expiration_time))
-
         except Exception as e:
             print('Failed to find blob metadata : ' + str(e))
 
 
+    def rename_blob(self, blob_name=None, new_name=None):
+        """
+        Renames a blob at google bucket
+        :param blob_name: Enter the existing blob name with full path at google bucket
+        :param new_name: Enter the new blob name with full path at google bucket you like to rename
+        :return: dict
 
-    # def bucket_exists(self, name=None):
+        """
+
+        self.storage_dict['blob_name'] = blob_name
+        self.storage_dict['new_name'] = new_name
+        # print("original blob_name :", blob_name)
+        print("new_name  :", new_name)
+        try:
+            print("Bucket:  ", self.bucket)
+            blob = self.bucket.blob(blob_name)
+            # print("blob:  ", blob)
+            new_blob = self.bucket.rename_blob(blob, new_name)
+            # print("new blob:  ", new_blob)
+            print('Blob {} has been renamed to {}'.format(blob.name, new_blob.name))
+        except Exception as e:
+            print('Failed to rename blob  : ' + str(e))
+
+
+    def create_bucket(self,new_bucket_name=None):
+        """
+        Creates a new bucket, only used for creating new bucket
+        :param new_bucket_name: Enter the name of new bucket yoy like to create at google cloud
+        :return: dict
+
+        """
+        self.storage_dict['new_bucket_name'] = new_bucket_name
+        try:
+            bucket_new = self.client.create_bucket(new_bucket_name)
+            print(f'Bucket {new_bucket_name} created'.format(bucket_new.name))
+        except Exception as e:
+            print('Failed to create new google bucket  : ' + str(e))
+
+
+    def copy_blob_btw_buckets(self, blob_name, bucket_name_dest, blob_name_dest):
+        """
+        Copies a blob from one bucket to another with a new name.
+        :param blob_name: Enter the blob name with full path at google bucket you like to copy
+        :param bucket_name_dest: Enter the destination google cloud bucket name you like to copy blob
+        :param blob_name_dest: Enter the new destination blob name with full path at destination google bucket
+        :return: dict
+
+        """
+        self.storage_dict['blob_name'] = blob_name
+        self.storage_dict['bucket_name_dest'] = bucket_name_dest
+        self.storage_dict['blob_name_dest'] = blob_name_dest
+        try:
+            # source_bucket = self.bucket
+            # source_bucket = self.client.get_bucket(bucket_name)
+            source_blob = self.bucket.blob(blob_name)
+            destination_bucket = self.client.get_bucket(bucket_name_dest)
+            dest_blob = self.bucket.copy_blob(
+                source_blob, destination_bucket, blob_name_dest)
+            print(f'Source Bucket:{self.bucket} ,   destination Bucket:{destination_bucket}')
+            print(f'Blob {source_blob}  copied to blob {dest_blob} .'.format(source_blob.name,  dest_blob.name))
+        except Exception as e:
+            print('Failed to copy blob to destination google bucket  : ' + str(e))
+
+
+
+
+
+
+   # def bucket_exists(self, name=None):
     #      bucket = gcp.get_bucket(name)
     #
     #      if bucket == bucket_name:
