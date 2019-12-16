@@ -5,6 +5,7 @@ from cloudmesh.configuration.Config import Config
 from cloudmesh.google.storage.Provider import Provider
 from cloudmesh.shell.command import PluginCommand
 from cloudmesh.shell.command import command
+from copy import deepcopy
 
 
 class GoogleCommand(PluginCommand):
@@ -82,7 +83,9 @@ class GoogleCommand(PluginCommand):
                 if storage[element]["cm"]["kind"] == "google":
                     d = config[f"cloudmesh.storage.{element}"]
                     banner("cloudmesh.storage." + element)
-                    print(Config.cat_dict(d))
+                    e = deepcopy(d)
+                    e["credentials"]["private_key"] = "*****"
+                    print(Config.cat_dict(e))
 
         elif arguments.list:
             print("Content of current yaml file")
