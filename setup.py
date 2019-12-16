@@ -28,6 +28,10 @@ def readfile(filename):
 # add minimum requirements here
 #
 requiers = """
+cloudmesh-cmd5
+cloudmesh-sys
+cloudmesh-inventory
+cloudmesh-configuration
 google-cloud-storage
 gsutil
 """.split("\n")
