@@ -97,13 +97,13 @@ class GoogleCommand(PluginCommand):
                     e["credentials"]["private_key"] = "*****"
                     print(Config.cat_dict(e))
 
-        elif arguments.yaml and arguments["list"]:
-            print("Content of current yaml file")
-            name = arguments["--service"] or "google"
-            config = Config()
-
-            credentials = config[f"cloudmesh.storage.{name}.credentials"]
-            pprint(credentials)
+        # elif arguments.yaml and arguments["list"]:
+        #     print("Content of current yaml file")
+        #     name = arguments["--service"] or "google"
+        #     config = Config()
+        #
+        #     credentials = config[f"cloudmesh.storage.{name}.credentials"]
+        #     pprint(credentials)
 
         elif arguments["list"] and arguments.bucket:
             banner("Google storage Bucket List")
