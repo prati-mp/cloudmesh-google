@@ -39,11 +39,11 @@ class GoogleCommand(PluginCommand):
         ::
 
           Usage:
-                google yaml write [FILE_JSON] [--service=SERVICE]
-                google yaml add [FILE_JSON] [--service=SERVICE]
+                google yaml write [FILE_JSON] [--storage=SERVICE]
+                google yaml add [FILE_JSON] [--storage=SERVICE]
                 google yaml list storage
                 google list bucket
-                google create bucket [--name=NAME] [--service=SERVICE]
+                google create bucket [--name=NAME] [--storage=SERVICE]
 
           This command does some useful things.
 
@@ -67,7 +67,7 @@ class GoogleCommand(PluginCommand):
 
         if arguments.yaml and arguments.write:
             path = path_expand(arguments["FILE_JSON"] or "~/.cloudmesh/google.json")
-            name = arguments["--service"] or "google"
+            name = arguments["--storage"] or "google"
 
             banner(f"Write the  credential  from {name}  to the json file {path}")
 
@@ -79,7 +79,7 @@ class GoogleCommand(PluginCommand):
             banner("Read the  specification from json and write to yaml file")
             path = path_expand(arguments["FILE_JSON"] or "~/.cloudmesh/google.json")
 
-            name = arguments["--service"] or "google"
+            name = arguments["--storage"] or "google"
             provider = Provider(service=name)
             provider.json_to_yaml(name, filename=path)
 
@@ -99,7 +99,7 @@ class GoogleCommand(PluginCommand):
 
         # elif arguments.yaml and arguments["list"]:
         #     print("Content of current yaml file")
-        #     name = arguments["--service"] or "google"
+        #     name = arguments["--storage"] or "google"
         #     config = Config()
         #
         #     credentials = config[f"cloudmesh.storage.{name}.credentials"]
@@ -112,7 +112,7 @@ class GoogleCommand(PluginCommand):
 
         elif arguments.create and arguments.bucket:
             bucket = arguments["--name"]
-            name = arguments["--service"] or "google"
+            name = arguments["--storage"] or "google"
             banner("Google storage create Bucket ")
             provider = Provider(service=name)
             provider.create_bucket(bucket)
