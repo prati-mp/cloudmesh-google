@@ -49,10 +49,10 @@ def run(cmd):
     print(result)
     return result
 
-#You can remove quotes in order to test credentials
+# MUST remove quotes in order to test credentials
 @pytest.mark.incremental
 class TestStorage(object):
-
+    '''
     def test_credential_generation(self):
         """
         google yaml write [FILE_JSON] [--name=NAME]
@@ -77,7 +77,7 @@ class TestStorage(object):
         result = run(cmd)
 
         assert result == ""
-
+    '''
     def test_setup_provider(self):
 
         global provider
@@ -88,7 +88,6 @@ class TestStorage(object):
         assert provider.kind == "google"
         config = Config()
         bucket=config[f'cloudmesh.storage.{cloud}.default.directory']
-
 
     def create_local_file(self, location, content):
         d = Path(os.path.dirname(path_expand(location)))
