@@ -24,6 +24,20 @@ import logging
 
 class Provider(StorageABC):
 
+    @staticmethod
+    def get_filename(filename):
+        if filename.startswith("./"):
+
+            _filename = filename[2:]
+
+        elif filename.startswith("."):
+            _filename = filename[1:]
+        else:
+            _filename = filename
+
+        return _filename
+
+
 
     @staticmethod
     def json_to_yaml(name, filename="~/.cloudmesh/google.json"):
@@ -184,12 +198,11 @@ class Provider(StorageABC):
         :return: dict
 
         """
-        self.storage_dict['source'] = source
+        self.storage_dict['source'] = Provider.get_filename(source)
         print("Bucket: ",self.bucket)
         print("Source keyword: ",source)
         try:
-
-            blobs = self.client.list_blobs(self.bucket_name, prefix=source)
+            blobs = self.client.list_blobs(self.bucket_name, prefix=self.storage_dict['source'])
             print('Blobs: ')
             print(blobs)
             for blob in blobs:
