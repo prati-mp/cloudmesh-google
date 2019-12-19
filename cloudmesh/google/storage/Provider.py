@@ -362,10 +362,30 @@ class Provider(StorageABC):
         except Exception as e:
             print('Failed to copy blob to destination google bucket  : ' + str(e))
 
+    def search(self, directory=None, filename=None, recursive=False):
+        """
+        gets the destination and copies it in source
 
+        :param service: the name of the service in the yaml file
+        :param directory: the directory which either can be a directory or file
+        :param filename: filename
+        :param recursive: in case of directory the recursive refers to all
+                          subdirectories in the specified source
+        :return: dict
+        """
+        raise NotImplementedError
 
+    def sync(self, source=None, destination=None, recursive=None ):
+        """
+        sync the destination and local
 
-
+        :param source:  local computer location
+        :param destination: cloud service
+        :param recursive: in case of directory the recursive refers to all
+                          subdirectories in the specified source
+        :return: dict
+        """
+        raise NotImplementedError
 
    # def bucket_exists(self, name=None):
     #      bucket = gcp.get_bucket(name)
