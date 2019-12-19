@@ -15,11 +15,12 @@ from cloudmesh.common.util import HEADING, banner
 from cloudmesh.common.util import path_expand
 from cloudmesh.common.util import writefile
 from cloudmesh.common.variables import Variables
-from cloudmesh.common3.Benchmark import Benchmark
+from cloudmesh.common.Benchmark import Benchmark
 from cloudmesh.configuration.Config import Config
 from cloudmesh.storage.Provider import Provider
 from cloudmesh.common.debug import VERBOSE
-from cloudmesh_installer.install.test import run as runcommand
+from cloudmesh_installer.install.installer import run as runcommand
+
 
 Benchmark.debug()
 
@@ -51,7 +52,7 @@ def run(cmd):
 #You can remove quotes in order to test credentials
 @pytest.mark.incremental
 class TestStorage(object):
-    '''
+
     def test_credential_generation(self):
         """
         google yaml write [FILE_JSON] [--name=NAME]
@@ -76,7 +77,7 @@ class TestStorage(object):
         result = run(cmd)
 
         assert result == ""
-    '''
+
     def test_setup_provider(self):
 
         global provider
@@ -216,6 +217,13 @@ class TestStorage(object):
         provider.create_bucket(new_bucket_name)
         StopWatch.stop("test_create_bucket_google")
 
+    def test_list_bucket(self):
+        HEADING()
+        from cloudmesh.google.storage.Provider import Provider
+        provider = Provider(service=cloud)
+        StopWatch.start("test_list_bucket_google")
+        provider.list_bucket()
+        StopWatch.stop("test_list_bucket_google")
 
 
     #
