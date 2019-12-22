@@ -3,7 +3,7 @@ from cloudmesh.shell.command import command
 from cloudmesh.shell.command import PluginCommand
 from cloudmesh.common.console import Console
 from cloudmesh.common.util import path_expand
-
+from cloudmesh.shell.command import command, map_parameters
 from pprint import pprint
 from cloudmesh.common.util import banner
 from cloudmesh.common.util import path_expand
@@ -61,8 +61,32 @@ class GoogleCommand(PluginCommand):
           Options:
               -f      specify the file
 
-
-
+          Description:
+          
+            google config add [FILE_JSON] [--storage=SERVICE]
+            
+                TODO 
+                
+            google config write [FILE_JSON] [--storage=SERVICE]
+            
+                TODO 
+                
+            google config list storage
+            
+                TODO 
+                
+            google config list credentials
+            
+                TODO 
+                
+            google list
+            
+                TODO 
+                
+            google create [--name=NAME] [--storage=SERVICE]
+            
+                TODO 
+                
         """
 
         # variables = Variables()
@@ -71,20 +95,27 @@ class GoogleCommand(PluginCommand):
         #                                   variables,
         #                                   "google")
 
-        name = arguments["--storage"] or "google"
+
+
+        map_parameters(arguments,
+                       'storage',
+                       'name')
+
+
+        name = arguments.storage or "google"
 
 
 
         if arguments.config and arguments.add:
             banner("Read the  specification from json and write to yaml file")
-            path = path_expand(arguments["FILE_JSON"] or "~/.cloudmesh/google.json")
+            path = path_expand(arguments.FILE_JSON or "~/.cloudmesh/google.json")
 
-            name = arguments["--storage"] or "google"
+            name = arguments.storage or "google"
             Provider.json_to_yaml(name, filename=path)
 
         elif arguments.config and arguments.write:
-            path = path_expand(arguments["FILE_JSON"] or "~/.cloudmesh/google.json")
-            name = arguments["--storage"] or "google"
+            path = path_expand(arguments.FILE_JSON or "~/.cloudmesh/google.json")
+            name = arguments.storage or "google"
 
             banner(f"Write the  credential  from {name}  to the json file {path}")
 
@@ -107,7 +138,7 @@ class GoogleCommand(PluginCommand):
 
         elif arguments.config and arguments["list"] and arguments.credentials:
              print("Content of current yaml file")
-             name = arguments["--storage"] or "google"
+             name = arguments.storage or "google"
              config = Config()
 
              credentials = config[f"cloudmesh.storage.{name}.credentials"]
@@ -120,8 +151,8 @@ class GoogleCommand(PluginCommand):
             provider.list_bucket()
 
         elif arguments.create:
-            bucket = arguments["--name"]
-            name = arguments["--storage"] or "google"
+            bucket = arguments.name
+            name = arguments.storage or "google"
             banner("Google storage create Bucket ")
             provider = Provider(service=name)
             provider.create_bucket(bucket)
