@@ -14,6 +14,41 @@ from google.cloud import storage
 
 class Provider(StorageABC):
 
+
+    sample = """
+    cloudmesh:
+      storage:
+        {name}:
+          cm:
+            name: google
+            active: 'true'
+            heading: GCP
+            host: https://console.cloud.google.com/storage
+            kind: google
+            version: TBD
+            service: storage
+          default:
+            directory: {bucket}
+            Location_type: Region
+            Location: us - east1
+            Default_storage_class: Standard
+            Access_control: Uniform
+            Encryption: Google-managed
+            Link_URL: https://console.cloud.google.com/storage/browser/{bucket}
+            Link_for_gsutil: gs://{bucket}
+          credentials:
+            type: service_account
+            project_id: imposing-coast-123456
+            private_key_id: a1b2c3d4*********
+            private_key: TBD
+            client_email: TBD
+            client_id: TBD
+            auth_uri: https://accounts.google.com/o/oauth2/auth
+            token_uri: https://oauth2.googleapis.com/token
+            auth_provider_x509_cert_url: https://www.googleapis.com/oauth2/v1/certs
+            client_x509_cert_url: TBD
+
+    """
     @staticmethod
     def get_filename(filename):
         if filename.startswith("./"):
