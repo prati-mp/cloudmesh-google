@@ -47,7 +47,6 @@ class Provider(StorageABC):
             token_uri: https://oauth2.googleapis.com/token
             auth_provider_x509_cert_url: https://www.googleapis.com/oauth2/v1/certs
             client_x509_cert_url: TBD
-
     """
     @staticmethod
     def get_filename(filename):
@@ -78,6 +77,9 @@ class Provider(StorageABC):
         with open(path, "r") as file:
             d = json.load(file)
         config = Config()
+        #
+        # BUG START FROM THE sample
+        #
         element = {
             "cm": {
                 "name": name,
