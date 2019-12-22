@@ -24,6 +24,20 @@ import logging
 
 class Provider(StorageABC):
 
+    @staticmethod
+    def get_filename(filename):
+        if filename.startswith("./"):
+
+            _filename = filename[2:]
+
+        elif filename.startswith("."):
+            _filename = filename[1:]
+        else:
+            _filename = filename
+
+        return _filename
+
+
 
     @staticmethod
     def json_to_yaml(name, filename="~/.cloudmesh/google.json"):
@@ -74,7 +88,7 @@ class Provider(StorageABC):
         :param filename:
         :return:
         """
-        print ("AAAA")
+        # print ("AAAA")
         config = Config()
         configuration = config[f"cloudmesh.storage.{name}"]
         credentials = config[f"cloudmesh.storage.{name}.credentials"]
@@ -100,8 +114,6 @@ class Provider(StorageABC):
         variables=Variables()
         self.debug=variables['debug']
 
-
-
         if json:
             self.path = path_expand(json)
             self.client = storage.Client.from_service_account_json(self.path)
@@ -123,7 +135,6 @@ class Provider(StorageABC):
     def get(self, source=None, destination=None, recursive=False):
         """
          Downloads(get) the source(bucket blob) to local storage
-         :param service: the name of the service in the yaml file
          :param source: the source which either can be a directory or file
          :param destination: the destination which either can be a directory or file
          :return: dict
@@ -137,8 +148,6 @@ class Provider(StorageABC):
             print ("GET")
             print (f"Source {self.bucket}:{source}")
             print(f"Destination local:{destination}")
-
-
         try:
             # Excluding any directory from the bucket.
             #filter and list the files which need to download using Google Storage bucket.list_blobs function.
@@ -160,12 +169,9 @@ class Provider(StorageABC):
         except Exception as e:
             print('Failed to download : ' + str(e))
 
-
-
     def put(self, source=None, destination=None, recursive=None ):
         """
         Uploads(puts) the source(local) to the destination service bucket
-        :param service: the name of the service in the yaml file
         :param source: the source which either can be a directory or file
         :param destination: the destination which either can be a directory or file
         :return: dict
@@ -192,13 +198,11 @@ class Provider(StorageABC):
         :return: dict
 
         """
-
-        self.storage_dict['source'] = source
+        self.storage_dict['source'] = Provider.get_filename(source)
         print("Bucket: ",self.bucket)
         print("Source keyword: ",source)
         try:
-
-            blobs = self.client.list_blobs(self.bucket_name, prefix=source)
+            blobs = self.client.list_blobs(self.bucket_name, prefix=self.storage_dict['source'])
             print('Blobs: ')
             print(blobs)
             for blob in blobs:
@@ -207,7 +211,6 @@ class Provider(StorageABC):
             print('Failed to list blobs from google bucket: ' + str(e))
 
     def delete(self, source=None):
-
         """
         Deletes a blob from the bucket.
         :param source: Enter the blob name at google bucket you like to delete
@@ -226,7 +229,6 @@ class Provider(StorageABC):
         except Exception as e:
             print('Failed to delete blob at google bucket: ' + str(e))
 
-
     def create_dir(self, directory=None):
         """
         Creates a directory or folder at google bucket.
@@ -234,7 +236,6 @@ class Provider(StorageABC):
         :return: dict
 
         """
-
         self.storage_dict['directory'] = directory
         print("Provided Directory or folder : ", directory)
         try:
@@ -253,7 +254,6 @@ class Provider(StorageABC):
         :return: dict
 
         """
-
         self.storage_dict['blob_name'] = blob_name
         try:
             print('Bucket : {} '.format(self.bucket.name))
@@ -296,7 +296,6 @@ class Provider(StorageABC):
         :return: dict
 
         """
-
         self.storage_dict['blob_name'] = blob_name
         self.storage_dict['new_name'] = new_name
         # print("original blob_name :", blob_name)
@@ -326,6 +325,18 @@ class Provider(StorageABC):
         except Exception as e:
             print('Failed to create new google bucket  : ' + str(e))
 
+    def list_bucket(self):
+        """
+        Lists google cloud bucket, only used for listing bucket
+        :return: dict
+
+        """
+        try:
+            buckets = self.client.list_buckets()
+            for bucket in buckets:
+                print(bucket.name)
+        except Exception as e:
+            print('Failed to list  google buckets : ' + str(e))
 
     def copy_blob_btw_buckets(self, blob_name, bucket_name_dest, blob_name_dest):
         """
@@ -351,10 +362,30 @@ class Provider(StorageABC):
         except Exception as e:
             print('Failed to copy blob to destination google bucket  : ' + str(e))
 
+    def search(self, directory=None, filename=None, recursive=False):
+        """
+        gets the destination and copies it in source
 
+        :param service: the name of the service in the yaml file
+        :param directory: the directory which either can be a directory or file
+        :param filename: filename
+        :param recursive: in case of directory the recursive refers to all
+                          subdirectories in the specified source
+        :return: dict
+        """
+        raise NotImplementedError
 
+    def sync(self, source=None, destination=None, recursive=None ):
+        """
+        sync the destination and local
 
-
+        :param source:  local computer location
+        :param destination: cloud service
+        :param recursive: in case of directory the recursive refers to all
+                          subdirectories in the specified source
+        :return: dict
+        """
+        raise NotImplementedError
 
    # def bucket_exists(self, name=None):
     #      bucket = gcp.get_bucket(name)

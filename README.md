@@ -1,23 +1,57 @@
-Documentation
-=============
+# Cloudmesh Google Providers
 
 
-[![image](https://img.shields.io/travis/TankerHQ/cloudmesh-bar.svg?branch=master)](https://travis-ci.org/TankerHQ/cloudmesn-bar)
 
-[![image](https://img.shields.io/pypi/pyversions/cloudmesh-bar.svg)](https://pypi.org/project/cloudmesh-bar)
 
-[![image](https://img.shields.io/pypi/v/cloudmesh-bar.svg)](https://pypi.org/project/cloudmesh-bar/)
+[![image](https://img.shields.io/travis/TankerHQ/cloudmesh-google.svg?branch=master)](https://travis-ci.org/TankerHQ/cloudmesh-google)
 
-[![image](https://img.shields.io/github/license/TankerHQ/python-cloudmesh-bar.svg)](https://github.com/TankerHQ/python-cloudmesh-bar/blob/master/LICENSE)
+[![image](https://img.shields.io/pypi/pyversions/cloudmesh-google.svg)](https://pypi.org/project/cloudmesh-google)
+
+[![image](https://img.shields.io/pypi/v/cloudmesh-google.svg)](https://pypi.org/project/cloudmesh-google/)
+
+[![image](https://img.shields.io/github/license/TankerHQ/python-cloudmesh-google.svg)](https://github.com/TankerHQ/python-cloudmesh-google/blob/master/LICENSE)
 
 see cloudmesh.cmd5
 
 * https://github.com/cloudmesh/cloudmesh.cmd5
 
-json
----
+## Introduction
+Cloudmesh-google provider offers various cloud engineering operations via command line.
+cloudmesh-google storage module provides following options via command line using `cms storage`  :
+* create dir
+* put
+* get
+* list
+* delete
 
-::
+
+Also following options are available via command line using `cms google` :
+* json_to_yaml (adds json file information to yaml)
+* yaml_to_json (creates a json file from yaml entry)
+* list_bucket
+* create_bucket
+* blob_metadata
+* rename_blob
+* copy_blob_btw_buckets
+
+
+## Installation
+Refer installation of cloudmesh-google:
+* <https://cloudmesh.github.io/cloudmesh-manual/accounts/google/google.html#instaltion-of-cloudmesh-google-providers>
+
+## References
+
+* Google account creation <https://cloudmesh.github.io/cloudmesh-manual/accounts/google.html>
+
+## Specifications
+
+google-cloud-storage
+
+
+### json
+
+
+```
 
     {
       "type": "service_account",
@@ -33,3 +67,4 @@ json
                               "user%40imposing-coast-257700.iam.gserviceaccount.com"
     }
 
+```

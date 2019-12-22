@@ -15,11 +15,12 @@ from cloudmesh.common.util import HEADING, banner
 from cloudmesh.common.util import path_expand
 from cloudmesh.common.util import writefile
 from cloudmesh.common.variables import Variables
-from cloudmesh.common3.Benchmark import Benchmark
+from cloudmesh.common.Benchmark import Benchmark
 from cloudmesh.configuration.Config import Config
 from cloudmesh.storage.Provider import Provider
 from cloudmesh.common.debug import VERBOSE
-from cloudmesh_installer.install.test import run as runcommand
+from cloudmesh_installer.install.installer import run as runcommand
+
 
 Benchmark.debug()
 
@@ -48,7 +49,7 @@ def run(cmd):
     print(result)
     return result
 
-#You can remove quotes in order to test credentials
+# MUST remove quotes in order to test credentials
 @pytest.mark.incremental
 class TestStorage(object):
     '''
@@ -87,7 +88,6 @@ class TestStorage(object):
         assert provider.kind == "google"
         config = Config()
         bucket=config[f'cloudmesh.storage.{cloud}.default.directory']
-
 
     def create_local_file(self, location, content):
         d = Path(os.path.dirname(path_expand(location)))
@@ -216,6 +216,13 @@ class TestStorage(object):
         provider.create_bucket(new_bucket_name)
         StopWatch.stop("test_create_bucket_google")
 
+    def test_list_bucket(self):
+        HEADING()
+        from cloudmesh.google.storage.Provider import Provider
+        provider = Provider(service=cloud)
+        StopWatch.start("test_list_bucket_google")
+        provider.list_bucket()
+        StopWatch.stop("test_list_bucket_google")
 
 
     #
