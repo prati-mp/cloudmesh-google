@@ -1,5 +1,5 @@
 from cloudmesh.common.util import path_expand, banner
-import os
+
 
 def gcstest():
     from google.cloud import storage

@@ -1,19 +1,12 @@
+from copy import deepcopy
 
-from cloudmesh.shell.command import command
-from cloudmesh.shell.command import PluginCommand
-from cloudmesh.common.console import Console
-from cloudmesh.common.util import path_expand
-from cloudmesh.shell.command import command, map_parameters
-from pprint import pprint
 from cloudmesh.common.util import banner
 from cloudmesh.common.util import path_expand
 from cloudmesh.configuration.Config import Config
 from cloudmesh.google.storage.Provider import Provider
 from cloudmesh.shell.command import PluginCommand
 from cloudmesh.shell.command import command
-from copy import deepcopy
-from cloudmesh.common.variables import Variables
-from cloudmesh.common.parameter import Parameter
+from cloudmesh.shell.command import map_parameters
 
 
 class GoogleCommand(PluginCommand):
