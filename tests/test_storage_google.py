@@ -1,7 +1,7 @@
 ###############################################################
 # cms set cloud=google
 # cms set storage=google
-# pytest -v --capture=no tests/test_storage_google.py::TestStorage::<METHODNAME>
+# pytest -v --capture=no tests/test_storage_google..py:::TestStorage::<METHODNAME>
 # pytest -x -v --capture=no tests/test_storage_google.py
 ###############################################################
 import os
