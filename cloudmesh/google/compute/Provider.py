@@ -6,6 +6,156 @@ from cloudmesh.provider import ComputeProviderPlugin
 
 # noinspection PyUnusedLocal
 class Provider(ComputeNodeABC, ComputeProviderPlugin):
+    kind = 'google'
+
+    #
+    # TODO: I just copied this from Azure, cahnge for Google
+    #
+
+    sample = """
+            cloudmesh:
+              cloud:
+                {name}:
+                  cm:
+                    active: true
+                    heading: {name}
+                    host: TBD
+                    label: {name}
+                    kind: azure
+                    version: latest
+                    service: compute
+                  default:
+                    image: Canonical:UbuntuServer:16.04.0-LTS:latest
+                    size: Basic_A0
+                    resource_group: cloudmesh
+                    storage_account: cmdrive
+                    network: cmnetwork
+                    subnet: cmsubnet
+                    blob_container: vhds
+                    AZURE_VM_IP_CONFIG: cloudmesh-ip-config
+                    AZURE_VM_NIC: cloudmesh-nic
+                    AZURE_VM_DISK_NAME: cloudmesh-os-disk
+                    AZURE_VM_USER: TBD
+                    AZURE_VM_PASSWORD: TBD
+                    AZURE_VM_NAME: cloudmeshVM
+                  credentials:
+                    AZURE_TENANT_ID: {tenantid}
+                    AZURE_SUBSCRIPTION_ID: {subscriptionid}
+                    AZURE_APPLICATION_ID: {applicationid}
+                    AZURE_SECRET_KEY: {secretkey}
+                    AZURE_REGION: eastus
+            """
+
+    #
+    # TODO: I just copied this from Azure, cahnge for Google
+    #
+
+    vm_state = [
+        'ACTIVE',
+        'BUILDING',
+        'DELETED',
+        'ERROR',
+        'HARD_REBOOT',
+        'PASSWORD',
+        'PAUSED',
+        'REBOOT',
+        'REBUILD',
+        'RESCUED',
+        'RESIZED',
+        'REVERT_RESIZE',
+        'SHUTOFF',
+        'SOFT_DELETED',
+        'STOPPED',
+        'SUSPENDED',
+        'UNKNOWN',
+        'VERIFY_RESIZE'
+    ]
+
+    #
+    # TODO: I just copied this from Azure, cahnge for Google
+    #
+
+    output = {
+        "status": {
+            "sort_keys": ["cm.name"],
+            "order": ["cm.name",
+                      "cm.cloud",
+                      "vm_state",
+                      "status",
+                      "task_state"],
+            "header": ["Name",
+                       "Cloud",
+                       "State",
+                       "Status",
+                       "Task"]
+        },
+        "vm": {
+            "sort_keys": ["cm.name"],
+            "order": [
+                "cm.name",
+                "cm.cloud",
+                "id",
+                "type",
+                "location",
+                "hardware_profile.vm_size",
+                "storage_profile.image_reference.offer",
+                "storage_profile.image_reference.sku",
+                "storage_profile.os_disk.disk_size_gb",
+                "provisioning_state",
+                "vm_id",
+                "cm.kind"],
+            "header": [
+                "Name",
+                "Cloud",
+                "Id",
+                "Type",
+                "Location",
+                "VM Size",
+                "OS Name",
+                "OS Version",
+                "OS Disk Size",
+                "Provisioning State",
+                "VM ID",
+                "Kind"]
+        },
+        "image": {
+            "sort_keys": ["cm.name",
+                          "plan.publisher"],
+            "order": ["cm.name",
+                      "location",
+                      "plan.publisher",
+                      "plan.name",
+                      "plan.product",
+                      "operating_system"],
+            "header": ["Name",
+                       "Location",
+                       "Publisher",
+                       "Plan Name",
+                       "Product",
+                       "Operating System",
+                       ]
+        },
+        "flavor": {
+            "sort_keys": ["name",
+                          "number_of_cores",
+                          "os_disk_size_in_mb"],
+            "order": ["name",
+                      "number_of_cores",
+                      "os_disk_size_in_mb",
+                      "resource_disk_size_in_mb",
+                      "memory_in_mb",
+                      "max_data_disk_count"],
+            "header": ["Name",
+                       "NumberOfCores",
+                       "OS_Disk_Size",
+                       "Resource_Disk_Size",
+                       "Memory",
+                       "Max_Data_Disk"]},
+        # "status": {},
+        "key": {},  # we need this for printing tables
+        "secgroup": {},  # we need this for printing tables
+        "secrule": {},  # we need this for printing tables
+    }
 
     def __init__(self, cloud, path):
         config = Config(config_path=path)["cloudmesh"]
