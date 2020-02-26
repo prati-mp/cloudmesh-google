@@ -68,3 +68,20 @@ google-cloud-storage
     }
 
 ```
+
+### API Reference
+
+Using API through Google API Python Client:  
+
+```
+from googleapiclient.discovery import build
+
+compute = build('compute', 'v1', developerKey=apiToken) #Multiple API versions, I assume v1 is the one we want to use
+
+instances = compute.instances() #Holds operations for working with specific instances
+instances.list() #List available instances
+instances.delete(project, zone, instance) # Delete specific instance
+#Etc.
+```
+
+API reference: <http://googleapis.github.io/google-api-python-client/docs/dyn/compute_v1.html>
