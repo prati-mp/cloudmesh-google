@@ -8,7 +8,7 @@ from cloudmesh.common.dotdict import dotdict
 from cloudmesh.common.util import path_expand, writefile
 from cloudmesh.common.variables import Variables
 from cloudmesh.configuration.Config import Config
-from cloudmesh.storage.StorageNewABC import StorageABC
+from cloudmesh.storage.StorageDeprecatedABC import StorageABC
 from google.cloud import storage
 
 
