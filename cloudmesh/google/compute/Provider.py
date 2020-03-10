@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from cloudmesh.configuration.Config import Config
-from cloudmesh.abstractclass.ComputeNodeABC import ComputeNodeABC
+from cloudmesh.abstract.ComputeNodeABC import ComputeNodeABC
 from cloudmesh.provider import ComputeProviderPlugin
 
 
