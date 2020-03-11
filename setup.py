@@ -38,7 +38,7 @@ cloudmesh-configuration
 cloudmesh-abstract
 """.splitlines()
 
-if  "PRODUCTION" not in os.environ:
+if "TESTING" not in os.environ:
     requiers = requiers + requiers_cloudmesh
 
 version = readfile("VERSION")[0].strip()
