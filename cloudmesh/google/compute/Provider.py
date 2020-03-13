@@ -1,16 +1,21 @@
-from abc import ABCMeta, abstractmethod
+import json
+import time
+from pprint import pprint
+
+import yaml
+from cloudmesh.abstract.ComputeNodeABC import ComputeNodeABC
+from cloudmesh.common.console import Console
+from cloudmesh.common.util import banner
+from cloudmesh.common.util import path_expand
 from cloudmesh.configuration.Config import Config
-from cloudmesh.abstractclass.ComputeNodeABC import ComputeNodeABC
 from cloudmesh.provider import ComputeProviderPlugin
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 
-# noinspection PyUnusedLocal
 class Provider(ComputeNodeABC, ComputeProviderPlugin):
     kind = 'google'
-
-    #
-    # TODO: I just copied this from Azure, cahnge for Google
-    #
 
     sample = """
             cloudmesh:
@@ -19,104 +24,83 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                   cm:
                     active: true
                     heading: {name}
-                    host: TBD
+                    host: https://console.cloud.google.com/compute/instances?project={project_id}
                     label: {name}
-                    kind: azure
-                    version: latest
+                    kind: google
+                    version: v1
                     service: compute
                   default:
-                    image: Canonical:UbuntuServer:16.04.0-LTS:latest
-                    size: Basic_A0
+                    image: ubuntu-1910
+                    image-project: ubuntu-os-cloud
+                    storage_bucket: cloudmesh-bucket
+                    zone: us-west3-a
+                    type: n1-standard-1
                     resource_group: cloudmesh
-                    storage_account: cmdrive
-                    network: cmnetwork
-                    subnet: cmsubnet
-                    blob_container: vhds
-                    AZURE_VM_IP_CONFIG: cloudmesh-ip-config
-                    AZURE_VM_NIC: cloudmesh-nic
-                    AZURE_VM_DISK_NAME: cloudmesh-os-disk
-                    AZURE_VM_USER: TBD
-                    AZURE_VM_PASSWORD: TBD
-                    AZURE_VM_NAME: cloudmeshVM
+                    network: global/networks/default
                   credentials:
-                    AZURE_TENANT_ID: {tenantid}
-                    AZURE_SUBSCRIPTION_ID: {subscriptionid}
-                    AZURE_APPLICATION_ID: {applicationid}
-                    AZURE_SECRET_KEY: {secretkey}
-                    AZURE_REGION: eastus
+                    type: {type}
+                    auth:
+                        json_file: {filename}
+                        project_id: {project_id}
+                        client_email: {client_email}
             """
 
-    #
-    # TODO: I just copied this from Azure, cahnge for Google
-    #
-
+    # Google VM Statuses.
     vm_state = [
-        'ACTIVE',
-        'BUILDING',
-        'DELETED',
-        'ERROR',
-        'HARD_REBOOT',
-        'PASSWORD',
-        'PAUSED',
-        'REBOOT',
-        'REBUILD',
-        'RESCUED',
-        'RESIZED',
-        'REVERT_RESIZE',
-        'SHUTOFF',
-        'SOFT_DELETED',
+        'PROVISIONING',
+        'STAGING',
+        'RUNNING',
+        'STOPPING',
         'STOPPED',
+        'SUSPENDING',
         'SUSPENDED',
-        'UNKNOWN',
-        'VERIFY_RESIZE'
+        'TERMINATED'
     ]
-
-    #
-    # TODO: I just copied this from Azure, cahnge for Google
-    #
 
     output = {
         "status": {
             "sort_keys": ["cm.name"],
             "order": ["cm.name",
-                      "cm.cloud",
-                      "vm_state",
+                      "cm.kind",
                       "status",
-                      "task_state"],
+                      "id"
+                      "zone"],
             "header": ["Name",
                        "Cloud",
-                       "State",
                        "Status",
-                       "Task"]
+                       "ID",
+                       "Zone"]
         },
         "vm": {
             "sort_keys": ["cm.name"],
             "order": [
                 "cm.name",
                 "cm.cloud",
+                "cm.kind",
                 "id",
                 "type",
-                "location",
-                "hardware_profile.vm_size",
-                "storage_profile.image_reference.offer",
-                "storage_profile.image_reference.sku",
-                "storage_profile.os_disk.disk_size_gb",
-                "provisioning_state",
-                "vm_id",
-                "cm.kind"],
+                "zone",
+                "status",
+                "deviceName",
+                "diskSizeGb",
+                "sourceImage",
+                "type",
+                "mode",
+                "created"],
             "header": [
                 "Name",
                 "Cloud",
+                "Kind",
                 "Id",
                 "Type",
-                "Location",
-                "VM Size",
-                "OS Name",
-                "OS Version",
+                "Zone",
+                "Status",
+                "Disk Name",
                 "OS Disk Size",
+                "OS Name",
+                "Disk Type",
                 "Provisioning State",
-                "VM ID",
-                "Kind"]
+                "Created"]
         },
         "image": {
             "sort_keys": ["cm.name",
@@ -127,7 +111,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                       "plan.name",
                       "plan.product",
                       "operating_system"],
-            "header": ["Name",
+            "header": ["cm.Name",
                        "Location",
                        "Publisher",
                        "Plan Name",
@@ -136,10 +120,10 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                        ]
         },
         "flavor": {
-            "sort_keys": ["name",
+            "sort_keys": ["cm.name",
                           "number_of_cores",
                           "os_disk_size_in_mb"],
-            "order": ["name",
+            "order": ["cm.name",
                       "number_of_cores",
                       "os_disk_size_in_mb",
                       "resource_disk_size_in_mb",
@@ -157,13 +141,233 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         "secrule": {},  # we need this for printing tables
     }
 
-    def __init__(self, cloud, path):
+    @staticmethod
+    def get_kind():
+        kind = ["google"]
+        return kind
+
+    def __init__(self, name, configuration):
+        cloud = name
+        path = configuration
         config = Config(config_path=path)["cloudmesh"]
         self.cm = config["cloud"][cloud]["cm"]
         self.default = config["cloud"][cloud]["default"]
         self.credentials = config["cloud"][cloud]["credentials"]
-        self.group = config["default"]["group"]
-        self.experiment = config["default"]["experiment"]
+        self.auth = self.credentials['auth']
+        self.compute_scopes = ['https://www.googleapis.com/auth/compute',
+                               'https://www.googleapis.com/auth/cloud-platform',
+                               'https://www.googleapis.com/auth/compute.readonly']
+
+    def _get_credentials(self, client_secret_file, scopes):
+        """
+        Method to get the credentials using the Service Account JSON file.
+        :param client_secret_file: Service Account JSON File path.
+        :param scopes: Scopes needed to provision.
+        :return:
+        """
+        # Authenticate using service account.
+        _credentials = service_account.Credentials.from_service_account_file(
+            filename=client_secret_file,
+            scopes=scopes)
+        return _credentials
+
+    def _get_compute_service(self):
+        """
+            Method to get compute service.
+        """
+        service_account_credentials = self._get_credentials(
+            self.auth['json_file'],
+            self.compute_scopes)
+        # Authenticate using service account.
+        if service_account_credentials is None:
+            print('Credentials are required')
+            raise ValueError('Cannot Authenticate without Credentials')
+        else:
+            compute_service = build(self.cm["service"],
+                                    self.cm["version"],
+                                    credentials=service_account_credentials)
+
+        return compute_service
+
+    def _process_status(self, instance):
+        instance_dict = self._process_instance(instance)
+        status_dict = {}
+        status_dict["cm.name"] = instance_dict["cm.name"]
+        status_dict["cm.kind"] = instance_dict["cm.kind"]
+        status_dict["status"] = instance_dict["status"]
+        status_dict["id"] = instance_dict["id"]
+        status_dict["zone"] = instance_dict["zone"]
+        return status_dict
+
+    def _process_instance(self, instance):
+        """
+        Method to convert the instance json to dict.
+        :param instance: JSON with instance details
+        :return: 
+        """
+        instance_dict = {}
+        ins_zone = instance["zone"]
+        instance_dict["zone"] = ins_zone[
+                                ins_zone.index("zones/") + 6:len(ins_zone)]
+        instance_dict["cm.name"] = instance["name"]
+        instance_dict["cm.cloud"] = self.kind
+        instance_dict["status"] = instance["status"]
+        instance_dict["type"] = instance["cpuPlatform"]
+        instance_dict["created"] = instance["creationTimestamp"]
+        instance_dict["id"] = instance["id"]
+        instance_dict["cm.kind"] = instance["kind"]
+        machineTypeUrl = instance["machineType"]
+        instance_dict["machineType"] = machineTypeUrl[machineTypeUrl.index(
+            "machineTypes/") + 13:len(machineTypeUrl)]
+        disks = instance["disks"]
+        disk = disks[0]
+        instance_dict["deviceName"] = disk["deviceName"]
+        instance_dict["diskSizeGb"] = disk["diskSizeGb"]
+        licenses = disk["licenses"][0]
+        instance_dict["sourceImage"] = licenses[
+                                       licenses.index("licenses/") + 9:len(
+                                           licenses)]
+        instance_dict["type"] = disk["type"]
+        instance_dict["mode"] = disk["mode"]
+
+        return instance_dict
+
+    def update_dict(self, elements, kind=None):
+        """
+        This function adds a cloudmesh cm dict to each dict in the list
+        elements.
+
+        returns an object or list of objects With the dict method
+        this object is converted to a dict. Typically this method is used
+        internally.
+
+        :param elements: the list of original dicts. If elements is a single
+                         dict a list with a single element is returned.
+        :param kind: for some kinds special attributes are added. This includes
+                     key, vm, image, flavor.
+        :return: The list with the modified dicts
+        """
+
+        if elements is None:
+            return None
+        elif type(elements) == list:
+            _elements = elements
+        else:
+            _elements = [elements]
+        d = []
+        for entry in _elements:
+
+            if "cm" not in entry:
+                entry['cm'] = {}
+
+            if kind == 'ip':
+                entry['name'] = entry['floating_ip_address']
+
+            entry["cm"].update({
+                "kind": kind,
+                "driver": self.cloudtype,
+                "cloud": self.cloud,
+                "name": entry['name']
+            })
+
+            if kind == 'key':
+
+                try:
+                    entry['comment'] = entry['public_key'].split(" ", 2)[2]
+                except:
+                    entry['comment'] = ""
+                entry['format'] = \
+                    entry['public_key'].split(" ", 1)[0].replace("ssh-", "")
+
+            elif kind == 'vm':
+
+                entry["cm"]["updated"] = str(DateTime.now())
+
+                if 'public_v4' in entry:
+                    entry['ip_public'] = entry['public_v4']
+
+                if "created_at" in entry:
+                    entry["cm"]["created"] = DateTime.utc(entry["created_at"])
+                    # del entry["created_at"]
+                    if 'status' in entry:
+                        entry["cm"]["status"] = str(entry["status"])
+                else:
+                    entry["cm"]["created"] = entry["modified"]
+
+            elif kind == 'flavor':
+
+                entry["cm"]["created"] = entry["updated"] = str(
+                    DateTime.now())
+
+            elif kind == 'image':
+
+                entry["cm"]["created"] = entry["updated"] = str(
+                    DateTime.now())
+
+            # elif kind == 'secgroup':
+            #    pass
+
+            d.append(entry)
+        return d
+
+    def _format_aggregate_list(self, instance_list):
+        """
+        Method to format the instance list to flat dict format.
+        :param instance_list: 
+        :return: dict
+        """
+        result = []
+        if instance_list is not None:
+            if "items" in instance_list:
+                items = instance_list["items"]
+                for item in items:
+                    if "instances" in items[item]:
+                        instances = items[item]["instances"]
+                        for instance in instances:
+                            # Extract the instance details.
+                            result.append(self._process_instance(instance))
+
+        return result
+
+    def _wait_for_operation(self, compute_service, operation, project,
+                            zone=None, name=None):
+
+        operation_name = operation["name"]
+        operation_type = operation["operationType"]
+        Console.info(
+            f'Waiting for {operation_type} operation to finish : {operation_name}')
+
+        try:
+            while True:
+                if zone is None:
+                    result = compute_service.globalOperations().get(
+                        project=project,
+                        operation=operation_name).execute()
+                else:
+                    result = compute_service.zoneOperations().get(
+                        project=project,
+                        zone=zone,
+                        operation=operation_name).execute()
+
+                if result['status'] == 'DONE':
+                    if 'error' in result:
+                        Console.error("Error in operation")
+                        raise Exception(result['error'])
+                    else:
+                        break
+
+                time.sleep(1)
+        except Exception as se:
+            raise se
+
+        if name is None:
+            msg = f"{operation_type} is complete."
+        else:
+            msg = f"{operation_type} on {name} is complete."
+
+        Console.ok(msg)
+
+        return result
 
     def start(self, name=None):
         """
@@ -172,7 +376,38 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         :param name: the unique node name
         :return:  The dict representing the node
         """
-        raise NotImplementedError
+        result = None
+        compute_service = self._get_compute_service()
+        _operation = None
+        if name is None:
+            Console.error("Instance name is required to start.")
+            return
+        try:
+
+            project_id = self.auth["project_id"]
+            zone = self.default["zone"]
+            _operation = compute_service.instances().start(project=project_id,
+                                                           zone=zone,
+                                                           instance=name).execute()
+
+            self._wait_for_operation(compute_service,
+                                     _operation,
+                                     project_id,
+                                     zone,
+                                     name)
+
+            # Get the instance details to update DB.
+            result = self.info(name)
+
+        except Exception as se:
+            print(se)
+            if type(se) == HttpError:
+                Console.error(
+                    f'Unable to start instance {name}. Reason: {se._get_reason()}')
+            else:
+                Console.error(f'Unable to start instance {name}.')
+
+        return result
 
     def stop(self, name=None):
         """
@@ -181,7 +416,39 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         :param name:
         :return: The dict representing the node including updated status
         """
-        raise NotImplementedError
+        result = None
+        compute_service = self._get_compute_service()
+        _operation = None
+        if name is None:
+            return
+        try:
+
+            project_id = self.auth["project_id"]
+            zone = self.default["zone"]
+
+            _operation = compute_service.instances().stop(
+                project=project_id,
+                zone=zone,
+                instance=name).execute()
+
+            self._wait_for_operation(compute_service,
+                                     _operation,
+                                     project_id,
+                                     zone,
+                                     name)
+
+            # Get the instance details to update DB.
+            result = self.info(name)
+
+        except Exception as se:
+            print(se)
+            if type(se) == HttpError:
+                Console.error(
+                    f'Unable to stop instance {name}. Reason: {se._get_reason()}')
+            else:
+                Console.error(f'Unable to stop instance {name}.')
+
+        return result
 
     def info(self, name=None):
         """
@@ -190,7 +457,33 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         :param name:
         :return: The dict representing the node including updated status
         """
-        raise NotImplementedError
+        result = None
+        if name is None:
+            Console.error("Instance name is required to start.")
+            return
+        try:
+            banner("Here Here")
+            project_id = self.auth["project_id"]
+            zone = self.default["zone"]
+            compute_service = self._get_compute_service()
+
+            # Get the instance details to update DB.
+            result = compute_service.instances().get(project=project_id,
+                                                     zone=zone,
+                                                     instance=name).execute()
+            print(result)
+            result = self._process_instance(result)
+
+            result = self.update_dict(result, kind="vm")
+
+        except Exception as se:
+            if type(se) == HttpError:
+                Console.error(
+                    f'Unable to get instance {name} info. Reason: {se._get_reason()}')
+            else:
+                Console.error(f'Unable to start instance {name}.')
+
+        return result
 
     def suspend(self, name=None):
         """
@@ -207,7 +500,20 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         :return: an array of dicts representing the nodes
         """
-        raise NotImplementedError
+        result = None
+        try:
+            compute_service = self._get_compute_service()
+
+            aggregatedList = compute_service.instances().aggregatedList(
+                project=self.auth["project_id"],
+                orderBy="name").execute()
+
+            result = self._format_aggregate_list(aggregatedList)
+
+        except Exception as se:
+            print(se)
+
+        return result
 
     def resume(self, name=None):
         """
@@ -323,7 +629,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
     def image(self, name=None):
         """
-        Gets the image with a given nmae
+        Gets the image with a given name
         :param name: The name of the image
         :return: the dict of the image
         """
@@ -463,7 +769,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
              interval=None,
              timeout=None):
         """
-        wais till the given VM can be logged into
+        wait till the given VM can be logged into
 
         :param vm: name of the vm
         :param interval: interval for checking
@@ -486,3 +792,37 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
     def log(self, vm=None):
         raise NotImplementedError
         return ""
+
+    @staticmethod
+    def json_to_yaml(cls, name, filename="~/.cloudmesh/security/google.json"):
+        """
+        Given a json file downloaded from google, copies the content into the
+        cloudmesh yaml file, while overwriting or creating a new compute provider
+        :param cls:
+        :param name:
+        :param filename: Service Account Key file downloaded from google cloud.
+        :return: None
+        """
+        path = path_expand(filename)
+
+        # Open and load the JSON file.
+        with open(path, "r") as file:
+            d = json.load(file)
+
+        # Get the project id and client email.
+        project_id = d["project_id"]
+        client_email = d["client_email"]
+
+        # Format the sample with json file details.
+        format_sample = cls.sample.format_map(locals())
+        # Convert the yaml sample to JSON.
+        google_yaml = yaml.load(format_sample, Loader=yaml.SafeLoader)
+        # Extract the google compute section
+        google_config = google_yaml["cloudmesh"]["cloud"]
+
+        # Update the google cloud section of cloudmesh.yaml config file.
+        config = Config()
+        config["cloudmesh"]["cloud"][name] = google_config
+        config.save()
+        banner("Result")
+        pprint(config["cloudmesh"]["cloud"][name])
