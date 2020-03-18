@@ -8,6 +8,8 @@ cloudmesh-configuration
 #
 #    pip-compile setup.py
 #
+google-cloud-storage==1.23.0
+gsutil==4.46
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

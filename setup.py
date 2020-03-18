@@ -18,28 +18,27 @@
 import io
 
 from setuptools import find_packages, setup
-import os
+
 
 def readfile(filename):
     with io.open(filename, encoding="utf-8") as stream:
         return stream.read().split()
 
-requiers = """
-google-cloud-storage
-gsutil
-""".split("\n")
 
-requiers_cloudmesh = """
-cloudmesh-common
+#requiers = readfile ('requirements.txt')
+#
+# add minimum requirements here
+#
+requiers = """
 cloudmesh-cmd5
 cloudmesh-sys
 cloudmesh-inventory
 cloudmesh-configuration
-cloudmesh-abstract
-""".splitlines()
+google-cloud-storage
+gsutil
+""".split("\n")
 
-if "TESTING" not in os.environ:
-    requiers = requiers + requiers_cloudmesh
+# dependency_links = ['http://github.com/nicolaiarocci/eve.git@develop']
 
 version = readfile("VERSION")[0].strip()
 
