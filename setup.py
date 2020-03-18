@@ -35,6 +35,9 @@ cloudmesh-sys
 cloudmesh-inventory
 cloudmesh-configuration
 google-cloud-storage
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib 
 gsutil
 """.split("\n")
 
