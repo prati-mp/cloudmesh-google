@@ -61,7 +61,10 @@ class Provider(StorageABC):
 
         return _filename
 
-
+    @staticmethod
+    def get_kind():
+        kind = ["google"]
+        return kind
 
     @staticmethod
     def json_to_yaml(name, filename="~/.cloudmesh/google.json"):
