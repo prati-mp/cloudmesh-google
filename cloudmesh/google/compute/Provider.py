@@ -1,10 +1,13 @@
 import json
+import os
 import time
 from pprint import pprint
 
 import yaml
 from cloudmesh.abstract.ComputeNodeABC import ComputeNodeABC
+from cloudmesh.common.DateTime import DateTime
 from cloudmesh.common.console import Console
+from cloudmesh.common.debug import VERBOSE
 from cloudmesh.common.util import banner
 from cloudmesh.common.util import path_expand
 from cloudmesh.configuration.Config import Config
@@ -31,7 +34,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                     service: compute
                   default:
                     image: ubuntu-1910
-                    image-project: ubuntu-os-cloud
+                    image_project: ubuntu-os-cloud
                     storage_bucket: cloudmesh-bucket
                     zone: us-west3-a
                     type: n1-standard-1
@@ -81,10 +84,11 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                 "type",
                 "zone",
                 "status",
+                "public_ip",
                 "deviceName",
                 "diskSizeGb",
                 "sourceImage",
-                "type",
+                "diskType",
                 "mode",
                 "created"],
             "header": [
@@ -95,6 +99,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                 "Type",
                 "Zone",
                 "Status",
+                "External IP",
                 "Disk Name",
                 "OS Disk Size",
                 "OS Name",
@@ -157,6 +162,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         self.compute_scopes = ['https://www.googleapis.com/auth/compute',
                                'https://www.googleapis.com/auth/cloud-platform',
                                'https://www.googleapis.com/auth/compute.readonly']
+        self.cloudtype = self.cm["kind"]
+        self.cloud = name
 
     def _get_credentials(self, client_secret_file, scopes):
         """
@@ -165,6 +172,13 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         :param scopes: Scopes needed to provision.
         :return:
         """
+
+        # Check cred file exists.
+        if not os.path.exists(client_secret_file):
+            Console.error(
+                f"Credential file {client_secret_file} does not exists. Check the path and try again.")
+            return None
+
         # Authenticate using service account.
         _credentials = service_account.Credentials.from_service_account_file(
             filename=client_secret_file,
@@ -175,12 +189,14 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         """
             Method to get compute service.
         """
+
         service_account_credentials = self._get_credentials(
             self.auth['json_file'],
             self.compute_scopes)
+
         # Authenticate using service account.
         if service_account_credentials is None:
-            print('Credentials are required')
+            Console.error('Credentials are required.')
             raise ValueError('Cannot Authenticate without Credentials')
         else:
             compute_service = build(self.cm["service"],
@@ -192,30 +208,31 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
     def _process_status(self, instance):
         instance_dict = self._process_instance(instance)
         status_dict = {}
-        status_dict["cm.name"] = instance_dict["cm.name"]
-        status_dict["cm.kind"] = instance_dict["cm.kind"]
+        status_dict["name"] = instance_dict["cm.name"]
+        status_dict["kind"] = instance_dict["cm.kind"]
         status_dict["status"] = instance_dict["status"]
         status_dict["id"] = instance_dict["id"]
         status_dict["zone"] = instance_dict["zone"]
+
         return status_dict
 
     def _process_instance(self, instance):
         """
         Method to convert the instance json to dict.
         :param instance: JSON with instance details
-        :return: 
+        :return:
         """
         instance_dict = {}
         ins_zone = instance["zone"]
         instance_dict["zone"] = ins_zone[
                                 ins_zone.index("zones/") + 6:len(ins_zone)]
-        instance_dict["cm.name"] = instance["name"]
-        instance_dict["cm.cloud"] = self.kind
+        instance_dict["name"] = instance["name"]
+        instance_dict["cloud"] = self.kind
         instance_dict["status"] = instance["status"]
         instance_dict["type"] = instance["cpuPlatform"]
         instance_dict["created"] = instance["creationTimestamp"]
         instance_dict["id"] = instance["id"]
-        instance_dict["cm.kind"] = instance["kind"]
+        instance_dict["kind"] = instance["kind"]
         machineTypeUrl = instance["machineType"]
         instance_dict["machineType"] = machineTypeUrl[machineTypeUrl.index(
             "machineTypes/") + 13:len(machineTypeUrl)]
@@ -227,8 +244,19 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         instance_dict["sourceImage"] = licenses[
                                        licenses.index("licenses/") + 9:len(
                                            licenses)]
-        instance_dict["type"] = disk["type"]
+        instance_dict["diskType"] = disk["type"]
         instance_dict["mode"] = disk["mode"]
+        instance_dict["modified"] = str(DateTime.now())
+
+        # Network access.
+        network_config = instance["networkInterfaces"]
+
+        if (network_config):
+            network_config = network_config[0]
+            access_config = network_config["accessConfigs"]
+            access_config = access_config[0]
+            external_ip = access_config["natIP"]
+            instance_dict["public_ip"] = external_ip
 
         return instance_dict
 
@@ -254,7 +282,9 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             _elements = elements
         else:
             _elements = [elements]
+
         d = []
+
         for entry in _elements:
 
             if "cm" not in entry:
@@ -279,15 +309,17 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                 entry['format'] = \
                     entry['public_key'].split(" ", 1)[0].replace("ssh-", "")
 
+            elif kind == 'status':
+                entry["cm"]["updated"] = str(DateTime.now())
+                if 'status' in entry:
+                    entry["cm"]["status"] = str(entry["status"])
+
             elif kind == 'vm':
 
                 entry["cm"]["updated"] = str(DateTime.now())
 
-                if 'public_v4' in entry:
-                    entry['ip_public'] = entry['public_v4']
-
-                if "created_at" in entry:
-                    entry["cm"]["created"] = DateTime.utc(entry["created_at"])
+                if "created" in entry:
+                    entry["cm"]["created"] = DateTime.utc(entry["created"])
                     # del entry["created_at"]
                     if 'status' in entry:
                         entry["cm"]["status"] = str(entry["status"])
@@ -296,24 +328,25 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
             elif kind == 'flavor':
 
-                entry["cm"]["created"] = entry["updated"] = str(
-                    DateTime.now())
+                entry["cm"]["created"] = entry["updated"] = str(DateTime.now())
 
             elif kind == 'image':
 
-                entry["cm"]["created"] = entry["updated"] = str(
-                    DateTime.now())
+                entry["cm"]["created"] = entry["updated"] = str(DateTime.now())
 
             # elif kind == 'secgroup':
             #    pass
 
             d.append(entry)
+
+        VERBOSE(d)
+
         return d
 
     def _format_aggregate_list(self, instance_list):
         """
         Method to format the instance list to flat dict format.
-        :param instance_list: 
+        :param instance_list:
         :return: dict
         """
         result = []
@@ -326,7 +359,20 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                         for instance in instances:
                             # Extract the instance details.
                             result.append(self._process_instance(instance))
+        return result
 
+    def _format_zone_list(self, instance_list):
+        """
+        Method to format the instance list to flat dict format.
+        :param instance_list:
+        :return: dict
+        """
+        result = []
+        if instance_list is not None:
+            if "items" in instance_list:
+                items = instance_list["items"]
+                for item in items:
+                    result.append(self._process_instance(item))
         return result
 
     def _wait_for_operation(self, compute_service, operation, project,
@@ -369,7 +415,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         return result
 
-    def start(self, name=None):
+    def start(self, name=None, **kwargs):
         """
         start a node
 
@@ -384,8 +430,9 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             return
         try:
 
-            project_id = self.auth["project_id"]
-            zone = self.default["zone"]
+            project_id = kwargs.pop('project_id', self.auth["project_id"])
+            zone = kwargs.pop('zone', self.default["zone"])
+
             _operation = compute_service.instances().start(project=project_id,
                                                            zone=zone,
                                                            instance=name).execute()
@@ -397,10 +444,9 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                                      name)
 
             # Get the instance details to update DB.
-            result = self.info(name)
+            result = self.__info(name, displayType="vm")
 
         except Exception as se:
-            print(se)
             if type(se) == HttpError:
                 Console.error(
                     f'Unable to start instance {name}. Reason: {se._get_reason()}')
@@ -409,7 +455,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         return result
 
-    def stop(self, name=None):
+    def stop(self, name=None, **kwargs):
         """
         stops the node with the given name
 
@@ -423,8 +469,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             return
         try:
 
-            project_id = self.auth["project_id"]
-            zone = self.default["zone"]
+            project_id = kwargs.pop('project_id', self.auth["project_id"])
+            zone = kwargs.pop('zone', self.default["zone"])
 
             _operation = compute_service.instances().stop(
                 project=project_id,
@@ -438,7 +484,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                                      name)
 
             # Get the instance details to update DB.
-            result = self.info(name)
+            result = self.__info(name, displayType="vm")
 
         except Exception as se:
             print(se)
@@ -450,38 +496,62 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         return result
 
-    def info(self, name=None):
+    def __info(self, name, displayType, **kwargs):
+        """
+        gets the information of a node with a given name
+
+        :param name:
+        :param displayType:
+        :return:
+        """
+
+        result = None
+
+        project_id = kwargs.pop('project_id', self.auth["project_id"])
+        zone = kwargs.pop('zone', self.default["zone"])
+
+        if displayType == None:
+            displayType = "vm"
+
+        compute_service = self._get_compute_service()
+
+        # Get the instance details to update DB.
+        result = compute_service.instances().get(project=project_id,
+                                                 zone=zone,
+                                                 instance=name).execute()
+        if displayType == 'status':
+            result = self._process_status(result)
+        else:
+            result = self._process_instance(result)
+
+        result = self.update_dict(result, kind=displayType)
+
+        return result
+
+    def info(self, name=None, **kwargs):
         """
         gets the information of a node with a given name
 
         :param name:
         :return: The dict representing the node including updated status
         """
+
         result = None
         if name is None:
             Console.error("Instance name is required to start.")
             return
+
+        display_kind = kwargs.pop('kind', "vm")
+
         try:
-            banner("Here Here")
-            project_id = self.auth["project_id"]
-            zone = self.default["zone"]
-            compute_service = self._get_compute_service()
-
-            # Get the instance details to update DB.
-            result = compute_service.instances().get(project=project_id,
-                                                     zone=zone,
-                                                     instance=name).execute()
-            print(result)
-            result = self._process_instance(result)
-
-            result = self.update_dict(result, kind="vm")
-
+            result = self.__info(name, displayType=display_kind, **kwargs)
         except Exception as se:
+            print(se)
             if type(se) == HttpError:
                 Console.error(
                     f'Unable to get instance {name} info. Reason: {se._get_reason()}')
             else:
-                Console.error(f'Unable to start instance {name}.')
+                Console.error(f'Unable to get info of instance {name}.')
 
         return result
 
@@ -501,14 +571,28 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         :return: an array of dicts representing the nodes
         """
         result = None
+
+        project_id = kwargs.pop('project_id', self.auth["project_id"])
+        zone = kwargs.pop('zone', None)
+
         try:
             compute_service = self._get_compute_service()
 
-            aggregatedList = compute_service.instances().aggregatedList(
-                project=self.auth["project_id"],
-                orderBy="name").execute()
+            if zone is None:
+                # Get aggregate list of all zones.
+                aggregatedList = compute_service.instances().aggregatedList(
+                    project=project_id,
+                    orderBy="name").execute()
+                result = self._format_aggregate_list(aggregatedList)
+            else:
+                # Get instance list of given zone.
+                zoneList = compute_service.instances().list(
+                    project=project_id,
+                    zone=zone,
+                    orderBy="name").execute()
+                result = self._format_zone_list(zoneList)
 
-            result = self._format_aggregate_list(aggregatedList)
+            result = self.update_dict(result, kind="vm")
 
         except Exception as se:
             print(se)
@@ -524,13 +608,45 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         """
         raise NotImplementedError
 
-    def destroy(self, name=None):
+    def destroy(self, name=None, **kwargs):
         """
         Destroys the node
         :param name: the name of the node
         :return: the dict of the node
         """
-        raise NotImplementedError
+
+        result = None
+        compute_service = self._get_compute_service()
+        _operation = None
+        if name is None:
+            return
+        try:
+
+            project_id = kwargs.pop('project_id', self.auth["project_id"])
+            zone = kwargs.pop('zone', self.default["zone"])
+
+            _operation = compute_service.instances().delete(
+                project=project_id,
+                zone=zone,
+                instance=name).execute()
+
+            self._wait_for_operation(compute_service,
+                                     _operation,
+                                     project_id,
+                                     zone,
+                                     name)
+
+            Console.ok("{name} deleted successfully.")
+
+        except Exception as se:
+            print(se)
+            if type(se) == HttpError:
+                Console.error(
+                    f'Unable to delete instance {name}. Reason: {se._get_reason()}')
+            else:
+                Console.error(f'Unable to delete instance {name}.')
+
+        return result
 
     def create(self,
                name=None,
@@ -625,6 +741,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         Lists the images on the cloud
         :return: dict
         """
+
         raise NotImplementedError
 
     def image(self, name=None):
