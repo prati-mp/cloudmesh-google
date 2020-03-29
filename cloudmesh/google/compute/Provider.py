@@ -35,6 +35,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                   default:
                     image: ubuntu-1910
                     image_project: ubuntu-os-cloud
+                    project_name: cloudmesh
                     storage_bucket: cloudmesh-bucket
                     zone: us-west3-a
                     type: n1-standard-1
@@ -109,19 +110,21 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         },
         "image": {
             "sort_keys": ["cm.name",
-                          "plan.publisher"],
+                          "cm.status"],
             "order": ["cm.name",
-                      "location",
-                      "plan.publisher",
-                      "plan.name",
-                      "plan.product",
-                      "operating_system"],
+                      "id",
+                      "storageLocations",
+                      "diskSizeGb",
+                      "creationTimestamp",
+                      "status",
+                      "selfLink"],
             "header": ["cm.Name",
+                       "ID",
                        "Location",
-                       "Publisher",
-                       "Plan Name",
-                       "Product",
-                       "Operating System",
+                       "Disk Size",
+                       "Created",
+                       "Status",
+                       "Link",
                        ]
         },
         "flavor": {
@@ -164,6 +167,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                                'https://www.googleapis.com/auth/compute.readonly']
         self.cloudtype = self.cm["kind"]
         self.cloud = name
+        self.service_account_email = self.auth['client_email']
 
     def _get_credentials(self, client_secret_file, scopes):
         """
@@ -339,7 +343,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
             d.append(entry)
 
-        VERBOSE(d)
+        # VERBOSE(d)
 
         return d
 
@@ -648,6 +652,112 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         return result
 
+    def _get_compute_config(self, vm_name, machine_type, disk_image, image_caption,
+                            image_url, storage_bucket, startup_script):
+
+        compute_config = {
+            'name': vm_name,
+            'machineType': machine_type,
+
+            # Specify the boot disk and the image to use as a source.
+            'disks': [
+                {
+                    'boot': True,
+                    'autoDelete': True,
+                    'initializeParams': {
+                        'sourceImage': disk_image,
+                    }
+                }
+            ],
+
+            # Specify a network interface with NAT to access the public
+            # internet.
+            'networkInterfaces': [{
+                'network': 'global/networks/default',
+                'accessConfigs': [
+                    {'type': 'ONE_TO_ONE_NAT', 'name': 'External NAT'}
+                ]
+            }],
+
+            # Allow the instance to access cloud storage and logging.
+            'serviceAccounts': [{
+                'email': self.service_account_email,
+                'scopes': [
+                    'https://www.googleapis.com/auth/devstorage.read_write',
+                    'https://www.googleapis.com/auth/logging.write'
+                ]
+            }],
+
+            # Metadata is readable from the instance and allows you to
+            # pass configuration from deployment scripts to instances.
+            'metadata': {
+                'items': [{
+                    # Startup script is automatically executed by the
+                    # instance upon startup.
+                    'key': 'startup-script',
+                    'value': startup_script
+                }, {
+                    'key': 'url',
+                    'value': image_url
+                }, {
+                    'key': 'text',
+                    'value': image_caption
+                }, {
+                    'key': 'bucket',
+                    'value': storage_bucket
+                }]
+            }
+        }
+
+        return compute_config
+
+    def create_instance(self, compute_service, project, zone, name, bucket,
+                        disk_image, **kwargs):
+        """Create a new VM instance.
+        :param disk_image:
+        :param bucket:
+        :param name:
+        :param zone:
+        :param project:
+        :type compute_service: object
+        """
+
+        compute_operation = None
+        machineType= kwargs.pop('flavor', self.default['type'])
+        startup_script = kwargs.pop('startup_script', None)
+        image_caption = kwargs.pop('image_caption', None)
+
+        disk_image_url = self.image(disk_image)
+
+        # Configure the machine
+        machine_type = f"zones/{zone}/machineTypes/{machineType}"
+
+        if (startup_script is not None):
+            startup_script = open(startup_script, 'r').read()
+
+            image_url = "http://storage.googleapis.com/gce-demo-input/photo.jpg"
+            image_caption = "Ready for cloudmesh?"
+
+        config = self._get_compute_config(name,
+                                          machine_type,
+                                          disk_image_url,
+                                          image_caption,
+                                          image_url,
+                                          bucket,
+                                          startup_script)
+
+        try:
+            compute_operation = compute_service.instances()\
+                                               .insert(project=project,
+                                                       zone=zone,
+                                                       body=config)\
+                                               .execute()
+
+        except Exception as de:
+            print(f'Error creating instance: {de}')
+
+        return compute_operation
+
     def create(self,
                name=None,
                image=None,
@@ -741,16 +851,73 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         Lists the images on the cloud
         :return: dict
         """
+        result = None
 
-        raise NotImplementedError
+        # Get the images for the image project.
+        image_project = kwargs.pop('image_project', self.default["image_project"])
 
-    def image(self, name=None):
+        try:
+            compute_service = self._get_compute_service()
+
+            #image_response = {}
+            #filename = path_expand('~/cm/projects/cloudmesh-google/tests/images.json')
+            #with open(filename, 'r') as f:
+            #    image_response = json.load(f)
+
+            # Get list of Custom images related to image project.
+            image_list = []
+            _next_url = None
+
+            #Iterate to get images till nextToken is None.
+            while True:
+                # Make the first call.
+                image_request = compute_service.images().list(
+                    project=image_project,
+                    orderBy="name", pageToken=_next_url)
+
+                image_response = image_request.execute()
+
+                if "items" in image_response:
+                    list_items = image_response["items"]
+                    image_list.extend(list_items)
+
+                if image_response is not None and "nextPageToken" in image_response:
+                    _next_url = image_response["nextPageToken"]
+                else:
+                    break
+
+            result = self.update_dict(image_list, kind="image")
+
+        except Exception as e:
+            print(f'Error when getting images {e}')
+
+        return result
+
+    def image(self, name=None, **kwargs):
         """
         Gets the image with a given name
         :param name: The name of the image
         :return: the dict of the image
         """
-        raise NotImplementedError
+
+        result = None
+
+        # Get the images for the image project.
+        image_project = kwargs.pop('image_project',
+                                   self.default["image_project"])
+
+        image_name = name or self.default["image"]
+
+        compute_service = self._get_compute_service()
+
+        image = compute_service.images().getFromFamily(project=image_project,
+                                                       family=image_name).execute()
+
+        result = self.update_dict(image, kind="image")
+
+        VERBOSE(result)
+
+        return result
 
     def flavors(self, **kwargs):
         """
