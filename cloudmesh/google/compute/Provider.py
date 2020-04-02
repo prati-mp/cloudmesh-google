@@ -15,6 +15,7 @@ from cloudmesh.provider import ComputeProviderPlugin
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from cloudmesh.mongo.CmDatabase import CmDatabase
 
 
 class Provider(ComputeNodeABC, ComputeProviderPlugin):
@@ -38,8 +39,9 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                     project_name: cloudmesh
                     storage_bucket: cloudmesh-bucket
                     zone: us-west3-a
-                    type: n1-standard-1
-                    resource_group: cloudmesh
+                    type: g1-small
+                    size: 10
+                    resource_group: cloudmesh-group
                     network: global/networks/default
                   credentials:
                     type: {type}
@@ -158,16 +160,15 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         cloud = name
         path = configuration
         config = Config(config_path=path)["cloudmesh"]
-        self.cm = config["cloud"][cloud]["cm"]
-        self.default = config["cloud"][cloud]["default"]
+        self.cm_config = config["cloud"][cloud]["cm"]
+        self.default_config = config["cloud"][cloud]["default"]
         self.credentials = config["cloud"][cloud]["credentials"]
-        self.auth = self.credentials['auth']
+        self.auth_config = self.credentials['auth']
         self.compute_scopes = ['https://www.googleapis.com/auth/compute',
                                'https://www.googleapis.com/auth/cloud-platform',
                                'https://www.googleapis.com/auth/compute.readonly']
-        self.cloudtype = self.cm["kind"]
+        self.cloudtype = self.cm_config["kind"]
         self.cloud = name
-        self.service_account_email = self.auth['client_email']
 
     def _get_credentials(self, client_secret_file, scopes):
         """
@@ -195,7 +196,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         """
 
         service_account_credentials = self._get_credentials(
-            self.auth['json_file'],
+            self.auth_config['json_file'],
             self.compute_scopes)
 
         # Authenticate using service account.
@@ -203,8 +204,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             Console.error('Credentials are required.')
             raise ValueError('Cannot Authenticate without Credentials')
         else:
-            compute_service = build(self.cm["service"],
-                                    self.cm["version"],
+            compute_service = build(self.cm_config["service"],
+                                    self.cm_config["version"],
                                     credentials=service_account_credentials)
 
         return compute_service
@@ -259,7 +260,10 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             network_config = network_config[0]
             access_config = network_config["accessConfigs"]
             access_config = access_config[0]
-            external_ip = access_config["natIP"]
+            if "natIP" in access_config:
+                external_ip = access_config["natIP"]
+            else:
+                external_ip = "Not Defined"
             instance_dict["public_ip"] = external_ip
 
         return instance_dict
@@ -385,7 +389,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         operation_name = operation["name"]
         operation_type = operation["operationType"]
         Console.info(
-            f'Waiting for {operation_type} operation to finish : {operation_name}')
+            f'Waiting for {operation_type} operation to finish : {name}')
 
         try:
             while True:
@@ -426,16 +430,18 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         :param name: the unique node name
         :return:  The dict representing the node
         """
-        result = None
+        result = {}
         compute_service = self._get_compute_service()
         _operation = None
+
         if name is None:
             Console.error("Instance name is required to start.")
-            return
+            return result
+
         try:
 
-            project_id = kwargs.pop('project_id', self.auth["project_id"])
-            zone = kwargs.pop('zone', self.default["zone"])
+            project_id = kwargs.pop('project_id', self.auth_config["project_id"])
+            zone = kwargs.pop('zone', self.default_config["zone"])
 
             _operation = compute_service.instances().start(project=project_id,
                                                            zone=zone,
@@ -447,15 +453,15 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                                      zone,
                                      name)
 
-            # Get the instance details to update DB.
-            result = self.__info(name, displayType="vm")
-
         except Exception as se:
             if type(se) == HttpError:
                 Console.error(
                     f'Unable to start instance {name}. Reason: {se._get_reason()}')
             else:
                 Console.error(f'Unable to start instance {name}.')
+        else:
+            # Get the instance details to update DB.
+            result = self.__info(name, displayType="vm")
 
         return result
 
@@ -473,8 +479,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             return
         try:
 
-            project_id = kwargs.pop('project_id', self.auth["project_id"])
-            zone = kwargs.pop('zone', self.default["zone"])
+            project_id = kwargs.pop('project_id', self.auth_config["project_id"])
+            zone = kwargs.pop('zone', self.default_config["zone"])
 
             _operation = compute_service.instances().stop(
                 project=project_id,
@@ -500,7 +506,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         return result
 
-    def __info(self, name, displayType, **kwargs):
+    def __info(self, name, displayType, compute_service=None, **kwargs):
         """
         gets the information of a node with a given name
 
@@ -511,25 +517,28 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         result = None
 
-        project_id = kwargs.pop('project_id', self.auth["project_id"])
-        zone = kwargs.pop('zone', self.default["zone"])
+        project_id = kwargs.pop('project_id', self.auth_config["project_id"])
+        zone = kwargs.pop('zone', self.default_config["zone"])
 
         if displayType == None:
             displayType = "vm"
 
-        compute_service = self._get_compute_service()
+        if compute_service is None:
+            compute_service = self._get_compute_service()
 
         # Get the instance details to update DB.
         result = compute_service.instances().get(project=project_id,
                                                  zone=zone,
                                                  instance=name).execute()
+
         if displayType == 'status':
             result = self._process_status(result)
-        else:
+        elif displayType == "vm":
             result = self._process_instance(result)
 
         result = self.update_dict(result, kind=displayType)
 
+        VERBOSE(result)
         return result
 
     def info(self, name=None, **kwargs):
@@ -576,7 +585,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         """
         result = None
 
-        project_id = kwargs.pop('project_id', self.auth["project_id"])
+        project_id = kwargs.pop('project_id', self.auth_config["project_id"])
         zone = kwargs.pop('zone', None)
 
         try:
@@ -626,8 +635,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             return
         try:
 
-            project_id = kwargs.pop('project_id', self.auth["project_id"])
-            zone = kwargs.pop('zone', self.default["zone"])
+            project_id = kwargs.pop('project_id', self.auth_config["project_id"])
+            zone = kwargs.pop('zone', self.default_config["zone"])
 
             _operation = compute_service.instances().delete(
                 project=project_id,
@@ -640,7 +649,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                                      zone,
                                      name)
 
-            Console.ok("{name} deleted successfully.")
+            Console.ok(f"{name} deleted successfully.")
 
         except Exception as se:
             print(se)
@@ -653,7 +662,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         return result
 
     def _get_compute_config(self, vm_name, machine_type, disk_image, image_caption,
-                            image_url, storage_bucket, startup_script):
+                            image_url, storage_bucket, startup_script,
+                            diskSize):
 
         compute_config = {
             'name': vm_name,
@@ -666,7 +676,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                     'autoDelete': True,
                     'initializeParams': {
                         'sourceImage': disk_image,
-                    }
+                    },
+                    'diskSizeGb': diskSize
                 }
             ],
 
@@ -681,7 +692,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
             # Allow the instance to access cloud storage and logging.
             'serviceAccounts': [{
-                'email': self.service_account_email,
+                'email': self.auth_config['client_email'],
                 'scopes': [
                     'https://www.googleapis.com/auth/devstorage.read_write',
                     'https://www.googleapis.com/auth/logging.write'
@@ -711,23 +722,29 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         return compute_config
 
-    def create_instance(self, compute_service, project, zone, name, bucket,
-                        disk_image, **kwargs):
-        """Create a new VM instance.
-        :param disk_image:
-        :param bucket:
-        :param name:
-        :param zone:
+    # TODO: Change params to dict or kwargs.
+    def __create_instance(self, compute_service, project, zone, name, bucket,
+                        disk_image, machineType, startup_script, image_caption,
+                        image_url, diskSize, group):
+
+        """
+        Create a VM instance for given name.
+        :param compute_service:
         :param project:
-        :type compute_service: object
+        :param zone:
+        :param name:
+        :param bucket:
+        :param disk_image:
+        :param machineType:
+        :param startup_script:
+        :param image_caption:
+        :param image_url:
+        :param diskSize:
+        :param group:
+        :return:
         """
 
-        compute_operation = None
-        machineType= kwargs.pop('flavor', self.default['type'])
-        startup_script = kwargs.pop('startup_script', None)
-        image_caption = kwargs.pop('image_caption', None)
-
-        disk_image_url = self.image(disk_image)
+        result = {}
 
         # Configure the machine
         machine_type = f"zones/{zone}/machineTypes/{machineType}"
@@ -738,50 +755,103 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             image_url = "http://storage.googleapis.com/gce-demo-input/photo.jpg"
             image_caption = "Ready for cloudmesh?"
 
-        config = self._get_compute_config(name,
+        compute_config = self._get_compute_config(name,
                                           machine_type,
-                                          disk_image_url,
+                                          disk_image,
                                           image_caption,
                                           image_url,
                                           bucket,
-                                          startup_script)
+                                          startup_script,
+                                          diskSize)
 
         try:
+            # Invoke compute insert comment to create a new instance.
             compute_operation = compute_service.instances()\
                                                .insert(project=project,
                                                        zone=zone,
-                                                       body=config)\
+                                                       body=compute_config)\
                                                .execute()
 
-        except Exception as de:
-            print(f'Error creating instance: {de}')
+            opearation_result = self._wait_for_operation(compute_service, compute_operation, project, zone, name)
 
-        return compute_operation
+            #filename = path_expand('~/cm/projects/cloudmesh-google/tests/google_vm_info_sample.json')
+            #with open(filename, 'r') as f:
+            #    vm_json = json.load(f)
+            #result = vm_json
+
+            if opearation_result["status"] == 'DONE':
+                Console.ok(f"Instance {name} created successfully.")
+            else:
+                raise ValueError(f"Instance {name} creation operation did not finish.")
+
+        except Exception as de:
+            if type(de) is HttpError:
+                Console.error(
+                    f"Error creating instance: {name} - {de._get_reason()}")
+            else:
+                Console.error(
+                    f"Error creating instance: {name} - {de}")
+            result = {}
+        else:
+            vm_info = self.__info(name,
+                                 displayType="vm",
+                                 compute_service=compute_service)
+
+            if type(vm_info) is list:
+                result = vm_info[0]
+            else:
+                result = vm_info
+
+        return result
 
     def create(self,
                name=None,
                image=None,
-               size=None,
+               size=10,
                timeout=360,
                group=None,
                **kwargs):
         """
-        creates a named node
+        creates a named node.
 
-        :param group: a list of groups the vm belongs to
         :param name: the name of the node
         :param image: the image used
         :param size: the size of the image
         :param timeout: a timeout in seconds that is invoked in case the
                image does not boot.
                The default is set to 3 minutes.
+        :param group: a list of groups the vm belongs to
         :param kwargs: additional arguments passed along at time of boot
         :return:
         """
-        """
-        create one node
-        """
-        raise NotImplementedError
+
+        resource_group = group or self.default_config['resource_group']
+        bucket = kwargs.get('storage_bucket', self.default_config['storage_bucket'])
+
+        name = name or 'vm1'
+        compute_service = self._get_compute_service()
+        project_id = self.auth_config['project_id']
+        zone = kwargs.get('zone', self.default_config['zone'])
+
+        machineType = kwargs.get('flavor', self.default_config['type'])
+        if machineType is None:
+            machineType = 'g1-small' #self.default_config['type']
+
+        startup_script = kwargs.get('startup_script', None)
+        image_caption = kwargs.get('image_caption', None)
+        image_url = kwargs.get('image_url', None)
+
+        #Get the image link using the name of the image.
+        os_image = self.image(image)
+        disk_image = os_image['selfLink']
+
+        result = self.__create_instance(compute_service, project_id, zone, name,
+                                        bucket, disk_image, machineType,
+                                        startup_script, image_caption,
+                                        image_url, diskSize=size,
+                                        group=resource_group)
+
+        return result
 
     def set_server_metadata(self, name, **metadata):
         """
@@ -791,6 +861,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         :param metadata: the metadata
         :return:
         """
+
         raise NotImplementedError
 
     def get_server_metadata(self, name):
@@ -854,13 +925,13 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         result = None
 
         # Get the images for the image project.
-        image_project = kwargs.pop('image_project', self.default["image_project"])
+        image_project = kwargs.pop('image_project', self.default_config["image_project"])
 
         try:
             compute_service = self._get_compute_service()
 
             #image_response = {}
-            #filename = path_expand('~/cm/projects/cloudmesh-google/tests/images.json')
+            #filename = path_expand('../../tests/images.json')
             #with open(filename, 'r') as f:
             #    image_response = json.load(f)
 
@@ -902,18 +973,35 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         result = None
 
-        # Get the images for the image project.
-        image_project = kwargs.pop('image_project',
-                                   self.default["image_project"])
+        ## Check DB:
+        cm = CmDatabase()
 
-        image_name = name or self.default["image"]
+        query = {"name": {'$regex': f".*{name}.*"}}
+        entries = cm.find(collection="google-image", query=query)
 
-        compute_service = self._get_compute_service()
+        for entry in entries:
+            if name in entry["name"]:
+                result = entry
+                if "deprecated" not in entry:
+                    break
 
-        image = compute_service.images().getFromFamily(project=image_project,
-                                                       family=image_name).execute()
+        cm.close_client()
 
-        result = self.update_dict(image, kind="image")
+        #If not found in Db, get it from provider.
+        if result is None:
+
+            # Get the images for the image project.
+            image_project = kwargs.pop('image_project',
+                                       self.default_config["image_project"])
+
+            image_name = name or self.default_config["image"]
+
+            compute_service = self._get_compute_service()
+
+            image = compute_service.images().getFromFamily(project=image_project,
+                                                           family=image_name).execute()
+
+            result = self.update_dict(image, kind="image")
 
         VERBOSE(result)
 
