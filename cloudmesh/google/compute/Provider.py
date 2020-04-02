@@ -40,6 +40,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                     storage_bucket: cloudmesh-bucket
                     zone: us-west3-a
                     type: g1-small
+                    size: 10
                     resource_group: cloudmesh-group
                     network: global/networks/default
                   credentials:
