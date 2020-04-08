@@ -1,6 +1,8 @@
 import json
 import os
+import subprocess
 import time
+from sys import platform
 from pprint import pprint
 
 import yaml
@@ -11,14 +13,13 @@ from cloudmesh.common.debug import VERBOSE
 from cloudmesh.common.util import banner
 from cloudmesh.common.util import path_expand
 from cloudmesh.configuration.Config import Config
-from cloudmesh.provider import ComputeProviderPlugin
+from cloudmesh.mongo.CmDatabase import CmDatabase
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from cloudmesh.mongo.CmDatabase import CmDatabase
 
 
-class Provider(ComputeNodeABC, ComputeProviderPlugin):
+class Provider(ComputeNodeABC):
     kind = 'google'
 
     sample = """
@@ -39,7 +40,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                     project_name: cloudmesh
                     storage_bucket: cloudmesh-bucket
                     zone: us-west3-a
-                    type: g1-small
+                    flavor: g1-small
                     size: 10
                     resource_group: cloudmesh-group
                     network: global/networks/default
@@ -87,7 +88,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                 "type",
                 "zone",
                 "status",
-                "public_ip",
+                "ip_public",
                 "deviceName",
                 "diskSizeGb",
                 "sourceImage",
@@ -160,6 +161,10 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         cloud = name
         path = configuration
         config = Config(config_path=path)["cloudmesh"]
+
+        if not cloud in config["cloud"]:
+            Console.error('Google compute configuration missing. Please register.')
+
         self.cm_config = config["cloud"][cloud]["cm"]
         self.default_config = config["cloud"][cloud]["default"]
         self.credentials = config["cloud"][cloud]["credentials"]
@@ -169,6 +174,16 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                                'https://www.googleapis.com/auth/compute.readonly']
         self.cloudtype = self.cm_config["kind"]
         self.cloud = name
+
+        # verify TBD
+        fields = ["project_id",
+                  "client_email"]
+
+        for field in fields:
+            if self.auth_config[field] == 'TBD':
+                Console.error(
+                    f"The credential for Oracle cloud is incomplete. {field} "
+                    "must not be TBD")
 
     def _get_credentials(self, client_secret_file, scopes):
         """
@@ -264,7 +279,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
                 external_ip = access_config["natIP"]
             else:
                 external_ip = "Not Defined"
-            instance_dict["public_ip"] = external_ip
+
+            instance_dict["ip_public"] = external_ip
 
         return instance_dict
 
@@ -440,8 +456,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         try:
 
-            project_id = kwargs.pop('project_id', self.auth_config["project_id"])
-            zone = kwargs.pop('zone', self.default_config["zone"])
+            project_id = kwargs.get('project_id', self.auth_config["project_id"])
+            zone = kwargs.get('zone', self.default_config["zone"])
 
             _operation = compute_service.instances().start(project=project_id,
                                                            zone=zone,
@@ -479,8 +495,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             return
         try:
 
-            project_id = kwargs.pop('project_id', self.auth_config["project_id"])
-            zone = kwargs.pop('zone', self.default_config["zone"])
+            project_id = kwargs.get('project_id', self.auth_config["project_id"])
+            zone = kwargs.get('zone', self.default_config["zone"])
 
             _operation = compute_service.instances().stop(
                 project=project_id,
@@ -517,8 +533,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
 
         result = None
 
-        project_id = kwargs.pop('project_id', self.auth_config["project_id"])
-        zone = kwargs.pop('zone', self.default_config["zone"])
+        project_id = kwargs.get('project_id', self.auth_config["project_id"])
+        zone = kwargs.get('zone', self.default_config["zone"])
 
         if displayType == None:
             displayType = "vm"
@@ -554,7 +570,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             Console.error("Instance name is required to start.")
             return
 
-        display_kind = kwargs.pop('kind', "vm")
+        display_kind = kwargs.get('kind', "vm")
 
         try:
             result = self.__info(name, displayType=display_kind, **kwargs)
@@ -585,8 +601,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         """
         result = None
 
-        project_id = kwargs.pop('project_id', self.auth_config["project_id"])
-        zone = kwargs.pop('zone', None)
+        project_id = kwargs.get('project_id', self.auth_config["project_id"])
+        zone = kwargs.get('zone', None)
 
         try:
             compute_service = self._get_compute_service()
@@ -619,7 +635,24 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         :param name: the name of the node
         :return: the dict of the node
         """
-        raise NotImplementedError
+
+        compute_service = self._get_compute_service()
+
+        try:
+            request = compute_service.instances() \
+                .reset(project=self.auth_config["project_id"],
+                       zone=self.auth_config["zone"],
+                       instance=name)
+
+            response = request.execute()
+
+        except Exception as se:
+            print(se)
+            result = {}
+        else:
+            result = response
+
+        return result
 
     def destroy(self, name=None, **kwargs):
         """
@@ -635,8 +668,8 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             return
         try:
 
-            project_id = kwargs.pop('project_id', self.auth_config["project_id"])
-            zone = kwargs.pop('zone', self.default_config["zone"])
+            project_id = kwargs.get('project_id', self.auth_config["project_id"])
+            zone = kwargs.get('zone', self.default_config["zone"])
 
             _operation = compute_service.instances().delete(
                 project=project_id,
@@ -652,12 +685,14 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
             Console.ok(f"{name} deleted successfully.")
 
         except Exception as se:
-            print(se)
+            VERBOSE(se)
             if type(se) == HttpError:
                 Console.error(
                     f'Unable to delete instance {name}. Reason: {se._get_reason()}')
             else:
                 Console.error(f'Unable to delete instance {name}.')
+        else:
+            result = self.__info(name=name, displayType="vm", compute_service=compute_service)
 
         return result
 
@@ -833,9 +868,10 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         project_id = self.auth_config['project_id']
         zone = kwargs.get('zone', self.default_config['zone'])
 
-        machineType = kwargs.get('flavor', self.default_config['type'])
+        machineType = kwargs.get('flavor', self.default_config['flavor'])
+
         if machineType is None:
-            machineType = 'g1-small' #self.default_config['type']
+            machineType = 'g1-small'
 
         startup_script = kwargs.get('startup_script', None)
         image_caption = kwargs.get('image_caption', None)
@@ -925,7 +961,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         result = None
 
         # Get the images for the image project.
-        image_project = kwargs.pop('image_project', self.default_config["image_project"])
+        image_project = kwargs.get('image_project', self.default_config["image_project"])
 
         try:
             compute_service = self._get_compute_service()
@@ -991,7 +1027,7 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
         if result is None:
 
             # Get the images for the image project.
-            image_project = kwargs.pop('image_project',
+            image_project = kwargs.get('image_project',
                                        self.default_config["image_project"])
 
             image_name = name or self.default_config["image"]
@@ -1164,6 +1200,49 @@ class Provider(ComputeNodeABC, ComputeProviderPlugin):
     def log(self, vm=None):
         raise NotImplementedError
         return ""
+
+    def ssh(self, vm=None, command=None):
+
+        if platform.lower() == 'win32':
+            #TODO: Make common code from openstack compute provider and resuse.
+            Console.error("Google cloud ssh is not impleted for windows. Please use linux based system.")
+            raise NotImplementedError
+
+        ip = vm['ip_public']
+        result = None
+
+        if command is None:
+            command = ""
+
+        if ip is None:
+            Console.error("Public IP for VM not found.")
+            return result
+        else:
+            location = ip
+
+        cmd = "ssh " \
+              "-o StrictHostKeyChecking=no " \
+              "-o UserKnownHostsFile=/dev/null " \
+              f" {location} {command}"
+
+        cmd = cmd.strip()
+
+        if command == "":
+            os.system(cmd)
+        else:
+            ssh = subprocess.Popen(cmd,
+                                   shell=True,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+
+            result = ssh.stdout.read().decode("utf-8")
+
+            if not result:
+                error = ssh.stderr.readlines()
+                for line in error:
+                    Console.error(line, prefix=False)
+
+        return result
 
     @staticmethod
     def json_to_yaml(cls, name, filename="~/.cloudmesh/security/google.json"):
