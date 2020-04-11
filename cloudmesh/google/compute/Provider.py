@@ -2,8 +2,9 @@ import json
 import os
 import subprocess
 import time
-from sys import platform
+import uuid
 from pprint import pprint
+from sys import platform
 
 import yaml
 from cloudmesh.abstract.ComputeNodeABC import ComputeNodeABC
@@ -147,7 +148,21 @@ class Provider(ComputeNodeABC):
                        "Memory",
                        "Max_Data_Disk"]},
         # "status": {},
-        "key": {},  # we need this for printing tables
+        "key": {
+            "sort_keys": ["name"],
+            "order": ["name",
+                      "user",
+                      "type",
+                      "format",
+                      "fingerprint",
+                      "comment"],
+            "header": ["Name",
+                       "User",
+                       "Type",
+                       "Format",
+                       "Fingerprint",
+                       "Comment"]
+        },  # we need this for printing tables
         "secgroup": {},  # we need this for printing tables
         "secrule": {},  # we need this for printing tables
     }
@@ -205,25 +220,116 @@ class Provider(ComputeNodeABC):
             scopes=scopes)
         return _credentials
 
-    def _get_compute_service(self):
+    def _get_service(self, service_type=None, version='v1', scopes=None):
         """
-            Method to get compute service.
+            Method to get service.
         """
 
         service_account_credentials = self._get_credentials(
             self.auth_config['json_file'],
-            self.compute_scopes)
+            scopes)
 
         # Authenticate using service account.
-        if service_account_credentials is None:
-            Console.error('Credentials are required.')
-            raise ValueError('Cannot Authenticate without Credentials')
+        if service_account_credentials is None or service_type is None:
+            Console.error('Credentials and Service Type are required.')
+            raise ValueError(
+                'Cannot Authenticate without Credentials or Service Type')
         else:
-            compute_service = build(self.cm_config["service"],
+            compute_service = build(service_type,
                                     self.cm_config["version"],
                                     credentials=service_account_credentials)
 
         return compute_service
+
+    def _get_compute_service(self):
+        """
+            Method to get compute service.
+        """
+        service_type = self.cm_config["service"]
+        service_version = self.cm_config["version"]
+        scopes = self.compute_scopes
+
+        compute_service = self._get_service(service_type,
+                                            service_version,
+                                            scopes)
+
+        return compute_service
+
+    def _get_iam_service(self):
+        """
+            Method to get compute service.
+        """
+        service_type = 'iam'
+        service_version = self.cm_config["version"]
+        scopes = ['https://www.googleapis.com/auth/cloud-platform']
+
+        iam_service = self._get_service(service_type,
+                                        service_version,
+                                        scopes)
+
+        return iam_service
+
+    def _key_dict(self, response):
+
+        project_id = response["name"]
+        commonInstanceMetadata = response["commonInstanceMetadata"]
+        items = commonInstanceMetadata['items']
+        id = response["id"]
+        selfLink = response["selfLink"]
+
+        keys = []
+
+        for item in items:
+            key = item['key']
+            if (key == 'ssh-keys'):
+                value = item['value']
+                for line in value.splitlines():
+                    key_dict = {}
+
+                    if line is None or line == '':
+                        # if line is empty, then dont process.
+                        continue
+                    key_items = line.split()
+                    name_items = key_items[0].split(":")
+                    key_dict["user"] = name_items[0]
+                    key_dict["format"] = name_items[1]
+
+                    key_dict["type"] = name_items[1].split("-")[0]
+                    key_dict["key"] = key_items[1]
+
+                    # Join format and key.
+                    key_dict[
+                        "public_key"] = f"{key_dict['format']} {key_dict['key']}"
+                    key_dict["comment"] = key_items[2]
+                    key_dict[
+                        "name"] = f"{key_dict['user']}:{key_dict['type']}:{key_dict['comment']}"
+                    key_dict["private_key"] = None
+
+                    fingerPrint = str(uuid.uuid1())
+                    key_dict["fingerprint"] = fingerPrint
+
+                    if (len(key_items) > 3):
+                        user_item = json.loads(key_items[3])
+                        key_dict["user_id"] = user_item["userName"]
+                        key_dict["expireOn"] = user_item["expireOn"]
+                    else:
+                        key_dict["user_id"] = None
+                        key_dict["expireOn"] = None
+
+                    key_dict["location"] = {"cloud": self.kind,
+                                            "region_name": None,
+                                            "zone": None,
+                                            "project": {
+                                                "id": project_id,
+                                                "name": self.kind,
+                                                "domain_id": id,
+                                                "domain_name": selfLink
+                                            }
+                                            }
+
+                    keys.append(key_dict)
+
+        return keys
 
     def _process_status(self, instance):
         instance_dict = self._process_instance(instance)
@@ -253,6 +359,7 @@ class Provider(ComputeNodeABC):
         instance_dict["created"] = instance["creationTimestamp"]
         instance_dict["id"] = instance["id"]
         instance_dict["kind"] = instance["kind"]
+        instance_dict["fingerprint"] = instance["fingerprint"]
         machineTypeUrl = instance["machineType"]
         instance_dict["machineType"] = machineTypeUrl[machineTypeUrl.index(
             "machineTypes/") + 13:len(machineTypeUrl)]
@@ -273,6 +380,8 @@ class Provider(ComputeNodeABC):
 
         if (network_config):
             network_config = network_config[0]
+            instance_dict["network_fingerprint"] = network_config["fingerprint"]
+            instance_dict["networkIP"] = network_config["networkIP"]
             access_config = network_config["accessConfigs"]
             access_config = access_config[0]
             if "natIP" in access_config:
@@ -324,16 +433,7 @@ class Provider(ComputeNodeABC):
                 "name": entry['name']
             })
 
-            if kind == 'key':
-
-                try:
-                    entry['comment'] = entry['public_key'].split(" ", 2)[2]
-                except:
-                    entry['comment'] = ""
-                entry['format'] = \
-                    entry['public_key'].split(" ", 1)[0].replace("ssh-", "")
-
-            elif kind == 'status':
+            if kind == 'status':
                 entry["cm"]["updated"] = str(DateTime.now())
                 if 'status' in entry:
                     entry["cm"]["status"] = str(entry["status"])
@@ -356,6 +456,9 @@ class Provider(ComputeNodeABC):
 
             elif kind == 'image':
 
+                entry["cm"]["created"] = entry["updated"] = str(DateTime.now())
+
+            elif kind == 'key':
                 entry["cm"]["created"] = entry["updated"] = str(DateTime.now())
 
             # elif kind == 'secgroup':
@@ -668,7 +771,10 @@ class Provider(ComputeNodeABC):
             return
         try:
 
-            project_id = kwargs.get('project_id', self.auth_config["project_id"])
+            vm = self.info(name=name)
+
+            project_id = kwargs.get('project_id',
+                                    self.auth_config["project_id"])
             zone = kwargs.get('zone', self.default_config["zone"])
 
             _operation = compute_service.instances().delete(
@@ -692,9 +798,10 @@ class Provider(ComputeNodeABC):
             else:
                 Console.error(f'Unable to delete instance {name}.')
         else:
-            result = self.__info(name=name, displayType="vm", compute_service=compute_service)
+            # Delete entry from DB
+            vm["Status"] = "DELETED"
 
-        return result
+        return vm
 
     def _get_compute_config(self, vm_name, machine_type, disk_image, image_caption,
                             image_url, storage_bucket, startup_script,
@@ -730,7 +837,8 @@ class Provider(ComputeNodeABC):
                 'email': self.auth_config['client_email'],
                 'scopes': [
                     'https://www.googleapis.com/auth/devstorage.read_write',
-                    'https://www.googleapis.com/auth/logging.write'
+                    'https://www.googleapis.com/auth/logging.write',
+                    'https://www.googleapis.com/auth/cloud-platform'
                 ]
             }],
 
@@ -801,23 +909,21 @@ class Provider(ComputeNodeABC):
 
         try:
             # Invoke compute insert comment to create a new instance.
-            compute_operation = compute_service.instances()\
-                                               .insert(project=project,
-                                                       zone=zone,
-                                                       body=compute_config)\
-                                               .execute()
+            compute_operation = compute_service.instances() \
+                .insert(project=project,
+                        zone=zone,
+                        body=compute_config) \
+                .execute()
 
-            opearation_result = self._wait_for_operation(compute_service, compute_operation, project, zone, name)
-
-            #filename = path_expand('~/cm/projects/cloudmesh-google/tests/google_vm_info_sample.json')
-            #with open(filename, 'r') as f:
-            #    vm_json = json.load(f)
-            #result = vm_json
+            opearation_result = self._wait_for_operation(compute_service,
+                                                         compute_operation,
+                                                         project, zone, name)
 
             if opearation_result["status"] == 'DONE':
                 Console.ok(f"Instance {name} created successfully.")
             else:
-                raise ValueError(f"Instance {name} creation operation did not finish.")
+                raise ValueError(
+                    f"Instance {name} creation operation did not finish.")
 
         except Exception as de:
             if type(de) is HttpError:
@@ -929,13 +1035,38 @@ class Provider(ComputeNodeABC):
         # if destination is None, increase the name counter and use the new name
         raise NotImplementedError
 
+    def __get_project_metadata(self, project_id):
+        """
+        Method to get list of keys from google project.
+        :param project_id: Project Id to get info for.
+        :return:
+        """
+
+        compute_service = self._get_compute_service()
+
+        response = compute_service.projects().get(project=project_id).execute()
+
+        # Generate a simple dict from response.
+        keys = self._key_dict(response)
+
+        # Add Cm entry to dict.
+        cm_keys = self.update_dict(keys, "key")
+
+        return cm_keys
+
     def keys(self):
         """
         Lists the keys on the cloud
 
         :return: dict
         """
-        raise NotImplementedError
+
+        # Get the project id from auth config.
+        project_id = self.auth_config['project_id']
+
+        keys = self.__get_project_metadata(project_id)
+
+        return keys
 
     def key_upload(self, key=None):
         """
@@ -944,6 +1075,7 @@ class Provider(ComputeNodeABC):
         :return:
         """
         raise NotImplementedError
+
 
     def key_delete(self, name=None):
         """
@@ -1204,8 +1336,9 @@ class Provider(ComputeNodeABC):
     def ssh(self, vm=None, command=None):
 
         if platform.lower() == 'win32':
-            #TODO: Make common code from openstack compute provider and resuse.
-            Console.error("Google cloud ssh is not impleted for windows. Please use linux based system.")
+            # TODO: Make common code from openstack compute provider and resuse.
+            Console.error(
+                "Google cloud ssh is not yet implemented on windows. Please try on linux based system.")
             raise NotImplementedError
 
         ip = vm['ip_public']
