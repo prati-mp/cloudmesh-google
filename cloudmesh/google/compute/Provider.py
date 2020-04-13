@@ -273,7 +273,7 @@ class Provider(ComputeNodeABC):
 
         project_id = response["name"]
         commonInstanceMetadata = response["commonInstanceMetadata"]
-        items = commonInstanceMetadata['items']
+        items = commonInstanceMetadata.get('items', [])
         id = response["id"]
         selfLink = response["selfLink"]
 
@@ -377,6 +377,8 @@ class Provider(ComputeNodeABC):
 
         # Network access.
         network_config = instance["networkInterfaces"]
+
+        instance_dict["metadata"] = instance.get("metadata", [])
 
         if (network_config):
             network_config = network_config[0]
@@ -773,6 +775,9 @@ class Provider(ComputeNodeABC):
 
             vm = self.info(name=name)
 
+            if type(vm) == list:
+                vm = vm[0]
+
             project_id = kwargs.get('project_id',
                                     self.auth_config["project_id"])
             zone = kwargs.get('zone', self.default_config["zone"])
@@ -798,8 +803,8 @@ class Provider(ComputeNodeABC):
             else:
                 Console.error(f'Unable to delete instance {name}.')
         else:
-            # Delete entry from DB
-            vm["Status"] = "DELETED"
+            # Set status to Delete for DB entry
+            vm["status"] = "DELETED"
 
         return vm
 
@@ -985,6 +990,10 @@ class Provider(ComputeNodeABC):
 
         #Get the image link using the name of the image.
         os_image = self.image(image)
+
+        if type(os_image) == list:
+            os_image = os_image[0]
+
         disk_image = os_image['selfLink']
 
         result = self.__create_instance(compute_service, project_id, zone, name,
@@ -1046,13 +1055,37 @@ class Provider(ComputeNodeABC):
 
         response = compute_service.projects().get(project=project_id).execute()
 
-        # Generate a simple dict from response.
-        keys = self._key_dict(response)
+        return response
 
-        # Add Cm entry to dict.
-        cm_keys = self.update_dict(keys, "key")
+    def __get_keys(self, cloud):
+        """
+        Method to get keys on google cloud from DB.
+        :param cloud:
+        :return:
+        """
+        db = CmDatabase()
+        db_keys = db.find(collection=f"{cloud}-key")
 
-        return cm_keys
+        if db_keys is None or len(db_keys) < 1:
+            db_keys = self.keys()
+
+        return db_keys
+
+    def __key_already_exists(self, cloud, name):
+        """
+        Method to check if the key with name already exists.
+        :param name: Name of the key to be added and checked.
+        :return:
+        """
+        exists = False
+        db_keys = self.__get_keys(cloud)
+
+        for key in db_keys:
+            if key["user"] == name:
+                exists = True
+                break;
+
+        return exists
 
     def keys(self):
         """
@@ -1064,9 +1097,15 @@ class Provider(ComputeNodeABC):
         # Get the project id from auth config.
         project_id = self.auth_config['project_id']
 
-        keys = self.__get_project_metadata(project_id)
+        proj_metadata = self.__get_project_metadata(project_id)
 
-        return keys
+        # Generate a simple dict from response.
+        keys = self._key_dict(proj_metadata)
+
+        # Add Cm entry to dict.
+        cm_keys = self.update_dict(keys, "key")
+
+        return cm_keys
 
     def key_upload(self, key=None):
         """
@@ -1074,7 +1113,72 @@ class Provider(ComputeNodeABC):
         :param key:
         :return:
         """
-        raise NotImplementedError
+
+        name = key["name"]
+
+        cloud = self.cloud
+
+        if self.__key_already_exists(cloud, name):
+            raise ValueError(f"{name} key already exists.")
+        else:
+            Console.msg(f"Upload the key: {name} -> {cloud}")
+
+        # Get the project id from auth config.
+        project_id = self.auth_config['project_id']
+
+        try:
+            requestId = str(uuid.uuid1())
+
+            proj_metadata = self.__get_project_metadata(project_id)
+
+            commonInstanceMetadata = proj_metadata['commonInstanceMetadata']
+            items = commonInstanceMetadata.get('items') or []
+
+            # Compuse new key.
+            new_key = f"{key['name']}:{key['public_key']}"
+
+            if 'user_id' in key:
+                user_info = {"userName": key["user_id"],
+                             "expireOn": key["expireOn"]}
+
+                new_key = f"{new_key} {user_info} \n"
+
+            keys_exists = False
+
+            for item in items:
+                if item['key'] == 'ssh-keys':
+                    currVal = item["value"]
+                    newVal = f"{currVal} \n {new_key}"
+                    item["value"] = newVal
+                    keys_exists = True
+                    break;
+
+            if not keys_exists:
+                #If keys does not exists, then append.
+                items.append({
+                    "key": "ssh-keys",
+                    "value": new_key
+                })
+
+            commonInstanceMetadata['items'] = items
+
+            compute_service = self._get_compute_service()
+
+            _oper = compute_service.projects().setCommonInstanceMetadata(
+                                               project=project_id,
+                                               body=commonInstanceMetadata,
+                                               requestId=requestId).execute()
+
+            self._wait_for_operation(compute_service, _oper,
+                                     project_id,
+                                     name=name)
+
+        except Exception as e:
+            pprint(e)
+            raise ValueError(f"Error uploading key : {name}")
+            key = None
+
+        return key
 
 
     def key_delete(self, name=None):
@@ -1094,6 +1198,7 @@ class Provider(ComputeNodeABC):
 
         # Get the images for the image project.
         image_project = kwargs.get('image_project', self.default_config["image_project"])
+        image_zone = kwargs.get('zone', self.default_config["zone"])
 
         try:
             compute_service = self._get_compute_service()
