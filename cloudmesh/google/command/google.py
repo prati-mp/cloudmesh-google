@@ -44,6 +44,7 @@ class GoogleCommand(PluginCommand):
                 google config list credentials
                 google list
                 google create [--name=NAME] [--storage=SERVICE]
+                google bigquery delete
 
 
           This command does some useful things.
@@ -98,8 +99,15 @@ class GoogleCommand(PluginCommand):
         name = arguments.storage or "google"
 
 
+        if arguments.bigquery:
 
-        if arguments.config and arguments.add:
+            from cloudmesh.google.bigquerey.interpreter import Interpreter
+            result = Interpreter.interprete(arguments)
+
+            return result
+
+
+        elif arguments.config and arguments.add:
             banner("Read the  specification from json and write to yaml file")
             path = path_expand(arguments.FILE_JSON or "~/.cloudmesh/google.json")
 
