@@ -1279,21 +1279,57 @@ class Provider(ComputeNodeABC):
 
         return result
 
+    def flavor(self, name, **kwargs):
+        """
+        Gets the flavor with a given name
+        :param name: The name of the flavor
+        :return: The dict of the flavor
+        """
+        comput_servce = self._get_compute_service()
+        project_id = kwargs.get('project_id', self.auth_config['project_id'])
+        zone = kwargs.get('zone',  self.default_config['zone'])
+        flavor = self._get_flavor(self, comput_servce, project_id, zone, name)
+
+        return flavor
+
+    def _get_flavor(self, compute_service, project_id, zone, name):
+        # Get the flavor for the project_id.
+        flavor = None;
+        try:
+            flavor = compute_service.machineTypes().get(project=project_id, zone=zone, machineType=name).execute()
+        except Exception as e:
+            print(f'Error in get_flavors {e}')
+        flavor=self.update_dict(flavor, kind='flavor')
+
+        return flavor
+
     def flavors(self, **kwargs):
         """
         Lists the flavors on the cloud
 
         :return: dict of flavors
         """
-        raise NotImplementedError
+        comput_servce = self._get_compute_service()
+        project_id = kwargs.get('project_id', self.auth_config['project_id'])
+        zone = kwargs.get('zone',  self.default_config['zone'])
 
-    def flavor(self, name=None):
-        """
-        Gets the flavor with a given name
-        :param name: The name of the flavor
-        :return: The dict of the flavor
-        """
-        raise NotImplementedError
+        return self._get_flavors(comput_servce, project_id, zone)
+
+    def _get_flavors(self, compute_service, project_id, zone):
+        source_disk_flavor = None
+        # Get the flavors for the image project.
+        try:
+            # Get list of images related to image project.
+            flavor_response = compute_service.machineTypes().list(project=project_id, zone=zone).execute()
+            # Extract the items.
+            source_disk_flavor = flavor_response['items']
+            # print('flavors 2')
+        except Exception as e:
+            print(f'Error in get_flavors {e}')
+        source_disk_flavor = self.update_dict(source_disk_flavor, kind='flavor')
+
+        return source_disk_flavor
+
 
     def reboot(self, name=None):
         """
