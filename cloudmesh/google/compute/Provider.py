@@ -172,10 +172,9 @@ class Provider(ComputeNodeABC):
         kind = ["google"]
         return kind
 
-    def __init__(self, name, configuration):
+    def __init__(self, name):
         cloud = name
-        path = configuration
-        config = Config(config_path=path)["cloudmesh"]
+        config = Config()["cloudmesh"]
 
         if not cloud in config["cloud"]:
             Console.error('Google compute configuration missing. Please register.')
