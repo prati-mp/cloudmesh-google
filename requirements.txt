@@ -11,3 +11,8 @@ cloudmesh-configuration
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
+httplib2
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+google-cloud-bigquery

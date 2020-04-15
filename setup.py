@@ -38,7 +38,9 @@ google-cloud-storage
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib 
+google-cloud-bigquery
 gsutil
+httplib2
 """.split("\n")
 
 # dependency_links = ['http://github.com/nicolaiarocci/eve.git@develop']
