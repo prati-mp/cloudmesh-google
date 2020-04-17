@@ -15,6 +15,7 @@ from cloudmesh.common.util import banner
 from cloudmesh.common.util import path_expand
 from cloudmesh.configuration.Config import Config
 from cloudmesh.mongo.CmDatabase import CmDatabase
+from cloudmesh.management.configuration.SSHkey import SSHkey
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -149,17 +150,17 @@ class Provider(ComputeNodeABC):
         "key": {
             "sort_keys": ["name"],
             "order": ["name",
-                      "user",
                       "type",
-                      "format",
                       "fingerprint",
-                      "comment"],
+                      "comment",
+                      "group"
+                      ],
             "header": ["Name",
-                       "User",
                        "Type",
-                       "Format",
                        "Fingerprint",
-                       "Comment"]
+                       "Comment",
+                       "Group"
+                       ]
         },  # we need this for printing tables
         "secgroup": {},  # we need this for printing tables
         "secrule": {},  # we need this for printing tables
@@ -267,7 +268,6 @@ class Provider(ComputeNodeABC):
         return iam_service
 
     def _key_dict(self, response):
-
         project_id = response["name"]
         commonInstanceMetadata = response["commonInstanceMetadata"]
         items = commonInstanceMetadata.get('items', [])
@@ -286,24 +286,27 @@ class Provider(ComputeNodeABC):
                     if line is None or line == '':
                         # if line is empty, then dont process.
                         continue
+
                     key_items = line.split()
                     name_items = key_items[0].split(":")
-                    key_dict["user"] = name_items[0]
-                    key_dict["format"] = name_items[1]
+                    key_dict["name"] = name_items[0]
+                    key_dict["type"] = name_items[1]
 
-                    key_dict["type"] = name_items[1].split("-")[0]
                     key_dict["key"] = key_items[1]
+
+                    key_dict["comment"] = key_items[2]
 
                     # Join format and key.
                     key_dict[
-                        "public_key"] = f"{key_dict['format']} {key_dict['key']}"
-                    key_dict["comment"] = key_items[2]
-                    key_dict[
-                        "name"] = f"{key_dict['user']}:{key_dict['type']}:{key_dict['comment']}"
+                        "public_key"] = f"{key_dict['type']} {key_dict['key']} {key_dict['comment']}"
+
                     key_dict["private_key"] = None
 
-                    fingerPrint = str(uuid.uuid1())
+                    fingerPrint = SSHkey._fingerprint(key_dict["public_key"])
+
                     key_dict["fingerprint"] = fingerPrint
+
+                    key_dict["group"] = self.kind
 
                     if (len(key_items) > 3):
                         user_item = json.loads(key_items[3])
@@ -805,72 +808,111 @@ class Provider(ComputeNodeABC):
 
         return vm
 
-    def _get_compute_config(self, vm_name, machine_type, disk_image, image_caption,
-                            image_url, storage_bucket, startup_script,
-                            diskSize):
+    def _get_compute_config(self, vm_name, project_id, zone, machine_type,
+                            disk_image, storage_bucket, startup_script,
+                            diskSize, secgroup):
+        project_zone = f"projects/{project_id}/zones/{zone}"
+        cm = {
+                'kind': 'vm',
+                'name': vm_name,
+                'group': 'cloudmesh',
+                'cloud': self.kind,
+                'secgroup': secgroup,
+                'status': 'available',
+                'collection': f'{self.kind}-vm',
+                'modified': str(DateTime.now())
+             }
 
         compute_config = {
-            'name': vm_name,
-            'machineType': machine_type,
-
-            # Specify the boot disk and the image to use as a source.
-            'disks': [
-                {
-                    'boot': True,
-                    'autoDelete': True,
-                    'initializeParams': {
-                        'sourceImage': disk_image,
-                    },
-                    'diskSizeGb': diskSize
-                }
-            ],
-
-            # Specify a network interface with NAT to access the public
-            # internet.
-            'networkInterfaces': [{
-                'network': 'global/networks/default',
-                'accessConfigs': [
-                    {'type': 'ONE_TO_ONE_NAT', 'name': 'External NAT'}
-                ]
-            }],
-
-            # Allow the instance to access cloud storage and logging.
-            'serviceAccounts': [{
-                'email': self.auth_config['client_email'],
-                'scopes': [
-                    'https://www.googleapis.com/auth/devstorage.read_write',
-                    'https://www.googleapis.com/auth/logging.write',
-                    'https://www.googleapis.com/auth/cloud-platform'
-                ]
-            }],
-
-            # Metadata is readable from the instance and allows you to
-            # pass configuration from deployment scripts to instances.
-            'metadata': {
-                'items': [{
-                    # Startup script is automatically executed by the
-                    # instance upon startup.
-                    'key': 'startup-script',
-                    'value': startup_script
-                }, {
-                    'key': 'url',
-                    'value': image_url
-                }, {
-                    'key': 'text',
-                    'value': image_caption
-                }, {
+              "kind": "compute#instance",
+              "name": vm_name,
+              "zone": project_zone,
+              "machineType": f"{project_zone}/machineTypes/{machine_type}",
+              "displayDevice": {
+                "enableDisplay": False
+              },
+              "metadata": {
+                "kind": "compute#metadata",
+                "items": [
+                  {
+                    "key": "cm",
+                    "value": f"{cm}"
+                  },
+                  {
+                    "key": "startup-script",
+                    "value": startup_script
+                  },
+                  {
                     'key': 'bucket',
                     'value': storage_bucket
-                }]
+                  }
+                ]
+              },
+              "disks": [
+                {
+                  "kind": "compute#attachedDisk",
+                  "type": "PERSISTENT",
+                  "boot": True,
+                  "mode": "READ_WRITE",
+                  "autoDelete": True,
+                  "deviceName": f"{vm_name}-disk",
+                  "initializeParams": {
+                    "sourceImage": disk_image,
+                    "diskType": f"{project_zone}/diskTypes/pd-standard",
+                    "diskSizeGb": diskSize
+                  }
+                }
+              ],
+              "canIpForward": False,
+              "networkInterfaces": [
+                {
+                  "kind": "compute#networkInterface",
+                  "accessConfigs": [
+                    {
+                      "kind": "compute#accessConfig",
+                      "name": "External NAT",
+                      "type": "ONE_TO_ONE_NAT"
+                    }
+                  ]
+                }
+              ],
+              "description": f"{vm_name} created using cloudmesh.",
+              "labels": {
+                "project_id": "cloudmesh"
+              },
+              "scheduling": {
+                "onHostMaintenance": "TERMINATE",
+                "automaticRestart": False
+              },
+              "deletionProtection": False,
+              "reservationAffinity": {
+                "consumeReservationType": "ANY_RESERVATION"
+              },
+              "serviceAccounts": [
+                {
+                  "email": self.auth_config['client_email'],
+                  "scopes": [
+                    "https://www.googleapis.com/auth/devstorage.read_only",
+                    "https://www.googleapis.com/auth/logging.write",
+                    "https://www.googleapis.com/auth/monitoring.write",
+                    "https://www.googleapis.com/auth/servicecontrol",
+                    "https://www.googleapis.com/auth/service.management.readonly",
+                    "https://www.googleapis.com/auth/trace.append"
+                  ]
+                }
+              ],
+              "shieldedInstanceConfig": {
+                "enableSecureBoot": False,
+                "enableVtpm": True,
+                "enableIntegrityMonitoring": True
+              }
             }
-        }
 
         return compute_config
 
     # TODO: Change params to dict or kwargs.
     def __create_instance(self, compute_service, project, zone, name, bucket,
-                        disk_image, machineType, startup_script, image_caption,
-                        image_url, diskSize, group):
+                        disk_image, machineType, startup_script, diskSize, secgroup):
 
         """
         Create a VM instance for given name.
@@ -882,32 +924,27 @@ class Provider(ComputeNodeABC):
         :param disk_image:
         :param machineType:
         :param startup_script:
-        :param image_caption:
-        :param image_url:
         :param diskSize:
-        :param group:
+        :param secgroup:
         :return:
         """
 
         result = {}
 
-        # Configure the machine
-        machine_type = f"zones/{zone}/machineTypes/{machineType}"
-
         if (startup_script is not None):
             startup_script = open(startup_script, 'r').read()
 
-            image_url = "http://storage.googleapis.com/gce-demo-input/photo.jpg"
-            image_caption = "Ready for cloudmesh?"
-
         compute_config = self._get_compute_config(name,
-                                          machine_type,
-                                          disk_image,
-                                          image_caption,
-                                          image_url,
-                                          bucket,
-                                          startup_script,
-                                          diskSize)
+                                                  project,
+                                                  zone,
+                                                  machineType,
+                                                  disk_image,
+                                                  bucket,
+                                                  startup_script,
+                                                  diskSize,
+                                                  secgroup)
+
+        pprint(compute_config)
 
         try:
             # Invoke compute insert comment to create a new instance.
@@ -969,6 +1006,7 @@ class Provider(ComputeNodeABC):
         """
 
         resource_group = group or self.default_config['resource_group']
+        secgroup = kwargs.get('secgroup', 'default')
         bucket = kwargs.get('storage_bucket', self.default_config['storage_bucket'])
 
         name = name or 'vm1'
@@ -995,9 +1033,8 @@ class Provider(ComputeNodeABC):
 
         result = self.__create_instance(compute_service, project_id, zone, name,
                                         bucket, disk_image, machineType,
-                                        startup_script, image_caption,
-                                        image_url, diskSize=size,
-                                        group=resource_group)
+                                        startup_script, diskSize=size,
+                                        secgroup=secgroup)
 
         return result
 
@@ -1068,17 +1105,20 @@ class Provider(ComputeNodeABC):
 
         return db_keys
 
-    def __key_already_exists(self, cloud, name):
+    def __key_already_exists(self, cloud, name, public_key):
         """
         Method to check if the key with name already exists.
         :param name: Name of the key to be added and checked.
         :return:
         """
         exists = False
+
         db_keys = self.__get_keys(cloud)
 
+        fingerprint = SSHkey._fingerprint(public_key)
+
         for key in db_keys:
-            if key["user"] == name:
+            if key["fingerprint"] == fingerprint:
                 exists = True
                 break;
 
@@ -1115,7 +1155,7 @@ class Provider(ComputeNodeABC):
 
         cloud = self.cloud
 
-        if self.__key_already_exists(cloud, name):
+        if self.__key_already_exists(cloud, name, key['public_key']):
             raise ValueError(f"{name} key already exists.")
         else:
             Console.msg(f"Upload the key: {name} -> {cloud}")
@@ -1473,23 +1513,17 @@ class Provider(ComputeNodeABC):
 
     def ssh(self, vm=None, command=None):
 
-        if platform.lower() == 'win32':
-            # TODO: Make common code from openstack compute provider and resuse.
-            Console.error(
-                "Google cloud ssh is not yet implemented on windows. Please try on linux based system.")
-            raise NotImplementedError
-
         ip = vm['ip_public']
         result = None
-
-        if command is None:
-            command = ""
 
         if ip is None:
             Console.error("Public IP for VM not found.")
             return result
         else:
             location = ip
+
+        if command is None:
+            command = ""
 
         cmd = "ssh " \
               "-o StrictHostKeyChecking=no " \
