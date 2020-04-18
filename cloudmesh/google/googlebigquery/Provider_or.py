@@ -12,12 +12,12 @@ from google.oauth2 import service_account
 
 class Provider(object):
 
-    def __init__(self, service='bigquery', config="~/.cloudmesh/cloudmesh.yaml"):
+    def __init__(self, service='bigquery'):
         VERBOSE("initialize google big query manager")
         self.service_account_file = None
         self.access_key = None
         self.region = None
-        self.config = Config(config_path=config)
+        self.config = Config()
 
         print(self.service_account_file)
         self.service_account_file = self.config[

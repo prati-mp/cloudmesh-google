@@ -11,12 +11,12 @@ from google.oauth2 import service_account
 
 class Provider(object):
 
-    def __init__(self, service='compute', config="~/.cloudmesh/cloudmesh.yaml"):
+    def __init__(self, service='compute'):
         VERBOSE("initialize google big query manager")
         self.service_account_file = None
         self.project_id = None
         #self.region = None
-        self.config = Config(config_path=config)
+        self.config = Config()
 
         print(self.service_account_file)
         self.service_account_file = self.config['cloudmesh.cloud.google.credentials.path_to_json_file']

@@ -137,10 +137,9 @@ class Provider(StorageABC):
 
     def __init__(self,
                  service=None,
-                 config="~/.cloudmesh/cloudmesh.yaml",
                  json=None,
                  **kwargs):
-        super().__init__(service=service, config=config)
+        super().__init__(service=service)
         variables=Variables()
         self.debug=variables['debug']
 
@@ -149,7 +148,7 @@ class Provider(StorageABC):
             self.client = storage.Client.from_service_account_json(self.path)
 
         else:
-            self.config = Config(config_path=config)
+            self.config = Config()
             self.configuration = self.config[f"cloudmesh.storage.{service}"]
             self.kind = self.config[f"cloudmesh.storage.{service}.cm.kind"]
             self.credentials = dotdict(self.configuration["credentials"])
