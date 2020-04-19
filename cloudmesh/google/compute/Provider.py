@@ -205,7 +205,7 @@ class Provider(ComputeNodeABC):
                     f"The credential for Oracle cloud is incomplete. {field} "
                     "must not be TBD")
 
-    def _get_credentials(self, client_secret_file, scopes):
+    def get_credentials(self, client_secret_file, scopes):
         """
         Method to get the credentials using the Service Account JSON file.
 
@@ -231,7 +231,7 @@ class Provider(ComputeNodeABC):
         Method to get service.
         """
 
-        service_account_credentials = self._get_credentials(
+        service_account_credentials = self.get_credentials(
             self.auth_config['json_file'],
             scopes)
 
