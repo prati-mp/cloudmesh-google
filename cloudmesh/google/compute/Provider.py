@@ -208,7 +208,6 @@ class Provider(ComputeNodeABC):
     def _get_credentials(self, client_secret_file, scopes):
         """
         Method to get the credentials using the Service Account JSON file.
-
         :param client_secret_file: Service Account JSON File path.
         :param scopes: Scopes needed to provision.
         :return:
@@ -228,7 +227,7 @@ class Provider(ComputeNodeABC):
 
     def _get_service(self, service_type=None, version='v1', scopes=None):
         """
-        Method to get service.
+            Method to get service.
         """
 
         service_account_credentials = self._get_credentials(
@@ -249,7 +248,7 @@ class Provider(ComputeNodeABC):
 
     def _get_compute_service(self):
         """
-        Method to get compute service.
+            Method to get compute service.
         """
         service_type = self.cm_config["service"]
         service_version = self.cm_config["version"]
@@ -263,7 +262,7 @@ class Provider(ComputeNodeABC):
 
     def _get_iam_service(self):
         """
-        Method to get compute service.
+            Method to get compute service.
         """
         service_type = 'iam'
         service_version = self.cm_config["version"]
@@ -485,7 +484,6 @@ class Provider(ComputeNodeABC):
     def _format_aggregate_list(self, instance_list):
         """
         Method to format the instance list to flat dict format.
-
         :param instance_list:
         :return: dict
         """
@@ -504,7 +502,6 @@ class Provider(ComputeNodeABC):
     def _format_zone_list(self, instance_list):
         """
         Method to format the instance list to flat dict format.
-
         :param instance_list:
         :return: dict
         """
@@ -639,11 +636,7 @@ class Provider(ComputeNodeABC):
 
         return result
 
-<<<<<<< HEAD
-    def _info(self, name, displayType, compute_service=None, **kwargs):
-=======
-    def __raw_instance_info(self, name, compute_service=None, **kwargs):
->>>>>>> origin/master
+    def _raw_instance_info(self, name, compute_service=None, **kwargs):
         """
         gets the information of a node with a given name
 
@@ -667,7 +660,7 @@ class Provider(ComputeNodeABC):
 
         return result
 
-    def __info(self, name, displayType, compute_service=None, **kwargs):
+    def _info(self, name, displayType, compute_service=None, **kwargs):
         """
         gets the information of a node with a given name
 
@@ -676,7 +669,7 @@ class Provider(ComputeNodeABC):
         :return:
         """
 
-        result = self.__raw_instance_info(name, compute_service)
+        result = self._raw_instance_info(name, compute_service)
 
         if displayType == None:
             displayType = "vm"
@@ -791,7 +784,6 @@ class Provider(ComputeNodeABC):
     def destroy(self, name=None, **kwargs):
         """
         Destroys the node
-
         :param name: the name of the node
         :return: the dict of the node
         """
@@ -933,7 +925,6 @@ class Provider(ComputeNodeABC):
 
         """
         Create a VM instance for given name.
-
         :param compute_service:
         :param project:
         :param zone:
@@ -1066,7 +1057,7 @@ class Provider(ComputeNodeABC):
         :return:
         """
 
-        metadata = self.__get_instance_metadata(name)
+        metadata = self._get_instance_metadata(name)
 
         metadata_items = metadata.get('items',  [])
 
@@ -1079,7 +1070,7 @@ class Provider(ComputeNodeABC):
         project_id = self.auth_config["project_id"]
         zone =  self.default_config["zone"]
 
-        operation_result = self.__update_metadata(project_id,
+        operation_result = self._update_metadata(project_id,
                                                   zone,
                                                   name,
                                                   metadata)
@@ -1097,13 +1088,13 @@ class Provider(ComputeNodeABC):
         :return:
         """
 
-        metadata = self.__get_instance_metadata(name)
+        metadata = self._get_instance_metadata(name)
 
         metadata_items = metadata.get('items')
 
         return metadata_items
 
-    def __update_metadata(self, project_id, zone, name, instance_metadata):
+    def _update_metadata(self, project_id, zone, name, instance_metadata):
         """
         Method to add/update/delete the instance metadata
         :param project_id:
@@ -1154,7 +1145,7 @@ class Provider(ComputeNodeABC):
         :return:
         """
 
-        metadata = self.__get_instance_metadata(name)
+        metadata = self._get_instance_metadata(name)
 
         metadata_items = metadata.get('items')
 
@@ -1175,7 +1166,7 @@ class Provider(ComputeNodeABC):
         project_id = self.auth_config["project_id"]
         zone =  self.default_config["zone"]
 
-        operation_result = self.__update_metadata(project_id, zone, name, metadata)
+        operation_result = self._update_metadata(project_id, zone, name, metadata)
 
         if operation_result and operation_result.get('status') == 'DONE':
             Console.ok(f"Metadata key {key} deleted from instance {name}")
@@ -1196,7 +1187,6 @@ class Provider(ComputeNodeABC):
     def _get_project_metadata(self, project_id):
         """
         Method to get list of keys from google project.
-
         :param project_id: Project Id to get info for.
         :return:
         """
@@ -1207,10 +1197,7 @@ class Provider(ComputeNodeABC):
 
         return response
 
-<<<<<<< HEAD
-    def _get_keys(self, cloud):
-=======
-    def __get_instance_metadata(self, name):
+    def _get_instance_metadata(self, name):
         """
         Method to get list of keys from google project.
         :param project_id: Project Id to get info for.
@@ -1219,7 +1206,7 @@ class Provider(ComputeNodeABC):
         metadata = {}
 
         try:
-            info = self.__raw_instance_info(name)
+            info = self._raw_instance_info(name)
 
             metadata = info.get('metadata')
 
@@ -1229,11 +1216,9 @@ class Provider(ComputeNodeABC):
 
         return metadata
 
-    def __get_keys(self, cloud):
->>>>>>> origin/master
+    def _get_keys(self, cloud):
         """
         Method to get keys on google cloud from DB.
-
         :param cloud:
         :return:
         """
@@ -1248,7 +1233,6 @@ class Provider(ComputeNodeABC):
     def _key_already_exists(self, cloud, name, public_key):
         """
         Method to check if the key with name already exists.
-
         :param name: Name of the key to be added and checked.
         :return:
         """
@@ -1288,7 +1272,6 @@ class Provider(ComputeNodeABC):
     def key_upload(self, key=None):
         """
         uploads the key specified in the yaml configuration to the cloud
-
         :param key:
         :return:
         """
@@ -1297,14 +1280,6 @@ class Provider(ComputeNodeABC):
 
         cloud = self.cloud
 
-<<<<<<< HEAD
-        if self._key_already_exists(cloud, name, key['public_key']):
-            raise ValueError(f"{name} key already exists.")
-        else:
-            Console.msg(f"Upload the key: {name} -> {cloud}")
-
-=======
->>>>>>> origin/master
         # Get the project id from auth config.
         project_id = self.auth_config['project_id']
 
@@ -1365,7 +1340,6 @@ class Provider(ComputeNodeABC):
     def key_delete(self, name=None):
         """
         deletes the key with the given name
-
         :param name: The name of the key
         :return:
         """
@@ -1373,12 +1347,12 @@ class Provider(ComputeNodeABC):
         # Get the project id from auth config.
         project_id = self.auth_config['project_id']
 
-        key = self.__get_keys(self.cloud)
+        key = self._get_keys(self.cloud)
 
         try:
             requestId = str(uuid.uuid1())
 
-            proj_metadata = self.__get_project_metadata(project_id)
+            proj_metadata = self._get_project_metadata(project_id)
 
             commonInstanceMetadata = proj_metadata['commonInstanceMetadata']
             keys = self._key_dict(proj_metadata)
@@ -1443,7 +1417,6 @@ class Provider(ComputeNodeABC):
     def images(self, **kwargs):
         """
         Lists the images on the cloud
-
         :return: dict
         """
         result = None
@@ -1492,7 +1465,6 @@ class Provider(ComputeNodeABC):
     def image(self, name=None, **kwargs):
         """
         Gets the image with a given name
-
         :param name: The name of the image
         :return: the dict of the image
         """
@@ -1536,7 +1508,6 @@ class Provider(ComputeNodeABC):
     def flavor(self, name, **kwargs):
         """
         Gets the flavor with a given name
-
         :param name: The name of the flavor
         :return: The dict of the flavor
         """
@@ -1771,7 +1742,6 @@ class Provider(ComputeNodeABC):
         """
         Given a json file downloaded from google, copies the content into the
         cloudmesh yaml file, while overwriting or creating a new compute provider
-
         :param cls:
         :param name:
         :param filename: Service Account Key file downloaded from google cloud.
