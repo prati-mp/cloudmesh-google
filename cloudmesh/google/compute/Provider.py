@@ -201,6 +201,7 @@ class Provider(ComputeNodeABC):
     def _get_credentials(self, client_secret_file, scopes):
         """
         Method to get the credentials using the Service Account JSON file.
+
         :param client_secret_file: Service Account JSON File path.
         :param scopes: Scopes needed to provision.
         :return:
@@ -220,7 +221,7 @@ class Provider(ComputeNodeABC):
 
     def _get_service(self, service_type=None, version='v1', scopes=None):
         """
-            Method to get service.
+        Method to get service.
         """
 
         service_account_credentials = self._get_credentials(
@@ -241,7 +242,7 @@ class Provider(ComputeNodeABC):
 
     def _get_compute_service(self):
         """
-            Method to get compute service.
+        Method to get compute service.
         """
         service_type = self.cm_config["service"]
         service_version = self.cm_config["version"]
@@ -255,7 +256,7 @@ class Provider(ComputeNodeABC):
 
     def _get_iam_service(self):
         """
-            Method to get compute service.
+        Method to get compute service.
         """
         service_type = 'iam'
         service_version = self.cm_config["version"]
@@ -475,6 +476,7 @@ class Provider(ComputeNodeABC):
     def _format_aggregate_list(self, instance_list):
         """
         Method to format the instance list to flat dict format.
+
         :param instance_list:
         :return: dict
         """
@@ -493,6 +495,7 @@ class Provider(ComputeNodeABC):
     def _format_zone_list(self, instance_list):
         """
         Method to format the instance list to flat dict format.
+
         :param instance_list:
         :return: dict
         """
@@ -762,6 +765,7 @@ class Provider(ComputeNodeABC):
     def destroy(self, name=None, **kwargs):
         """
         Destroys the node
+
         :param name: the name of the node
         :return: the dict of the node
         """
@@ -916,6 +920,7 @@ class Provider(ComputeNodeABC):
 
         """
         Create a VM instance for given name.
+
         :param compute_service:
         :param project:
         :param zone:
@@ -1081,6 +1086,7 @@ class Provider(ComputeNodeABC):
     def _get_project_metadata(self, project_id):
         """
         Method to get list of keys from google project.
+
         :param project_id: Project Id to get info for.
         :return:
         """
@@ -1094,6 +1100,7 @@ class Provider(ComputeNodeABC):
     def _get_keys(self, cloud):
         """
         Method to get keys on google cloud from DB.
+
         :param cloud:
         :return:
         """
@@ -1108,6 +1115,7 @@ class Provider(ComputeNodeABC):
     def _key_already_exists(self, cloud, name, public_key):
         """
         Method to check if the key with name already exists.
+
         :param name: Name of the key to be added and checked.
         :return:
         """
@@ -1147,6 +1155,7 @@ class Provider(ComputeNodeABC):
     def key_upload(self, key=None):
         """
         uploads the key specified in the yaml configuration to the cloud
+
         :param key:
         :return:
         """
@@ -1221,6 +1230,7 @@ class Provider(ComputeNodeABC):
     def key_delete(self, name=None):
         """
         deletes the key with the given name
+
         :param name: The name of the key
         :return:
         """
@@ -1229,6 +1239,7 @@ class Provider(ComputeNodeABC):
     def images(self, **kwargs):
         """
         Lists the images on the cloud
+
         :return: dict
         """
         result = None
@@ -1277,6 +1288,7 @@ class Provider(ComputeNodeABC):
     def image(self, name=None, **kwargs):
         """
         Gets the image with a given name
+
         :param name: The name of the image
         :return: the dict of the image
         """
@@ -1320,6 +1332,7 @@ class Provider(ComputeNodeABC):
     def flavor(self, name, **kwargs):
         """
         Gets the flavor with a given name
+
         :param name: The name of the flavor
         :return: The dict of the flavor
         """
@@ -1554,6 +1567,7 @@ class Provider(ComputeNodeABC):
         """
         Given a json file downloaded from google, copies the content into the
         cloudmesh yaml file, while overwriting or creating a new compute provider
+
         :param cls:
         :param name:
         :param filename: Service Account Key file downloaded from google cloud.
