@@ -582,7 +582,7 @@ class Provider(ComputeNodeABC):
                 Console.error(f'Unable to start instance {name}.')
         else:
             # Get the instance details to update DB.
-            result = self.__info(name, displayType="vm")
+            result = self._info(name, displayType="vm")
 
         return result
 
@@ -615,7 +615,7 @@ class Provider(ComputeNodeABC):
                                      name)
 
             # Get the instance details to update DB.
-            result = self.__info(name, displayType="vm")
+            result = self._info(name, displayType="vm")
 
         except Exception as se:
             print(se)
@@ -627,7 +627,7 @@ class Provider(ComputeNodeABC):
 
         return result
 
-    def __info(self, name, displayType, compute_service=None, **kwargs):
+    def _info(self, name, displayType, compute_service=None, **kwargs):
         """
         gets the information of a node with a given name
 
@@ -678,7 +678,7 @@ class Provider(ComputeNodeABC):
         display_kind = kwargs.get('kind', "vm")
 
         try:
-            result = self.__info(name, displayType=display_kind, **kwargs)
+            result = self._info(name, displayType=display_kind, **kwargs)
         except Exception as se:
             print(se)
             if type(se) == HttpError:
@@ -911,7 +911,7 @@ class Provider(ComputeNodeABC):
         return compute_config
 
     # TODO: Change params to dict or kwargs.
-    def __create_instance(self, compute_service, project, zone, name, bucket,
+    def _create_instance(self, compute_service, project, zone, name, bucket,
                         disk_image, machineType, startup_script, diskSize, secgroup):
 
         """
@@ -973,7 +973,7 @@ class Provider(ComputeNodeABC):
                     f"Error creating instance: {name} - {de}")
             result = {}
         else:
-            vm_info = self.__info(name,
+            vm_info = self._info(name,
                                  displayType="vm",
                                  compute_service=compute_service)
 
@@ -1031,7 +1031,7 @@ class Provider(ComputeNodeABC):
 
         disk_image = os_image['selfLink']
 
-        result = self.__create_instance(compute_service, project_id, zone, name,
+        result = self._create_instance(compute_service, project_id, zone, name,
                                         bucket, disk_image, machineType,
                                         startup_script, diskSize=size,
                                         secgroup=secgroup)
@@ -1078,7 +1078,7 @@ class Provider(ComputeNodeABC):
         # if destination is None, increase the name counter and use the new name
         raise NotImplementedError
 
-    def __get_project_metadata(self, project_id):
+    def _get_project_metadata(self, project_id):
         """
         Method to get list of keys from google project.
         :param project_id: Project Id to get info for.
@@ -1091,7 +1091,7 @@ class Provider(ComputeNodeABC):
 
         return response
 
-    def __get_keys(self, cloud):
+    def _get_keys(self, cloud):
         """
         Method to get keys on google cloud from DB.
         :param cloud:
@@ -1105,7 +1105,7 @@ class Provider(ComputeNodeABC):
 
         return db_keys
 
-    def __key_already_exists(self, cloud, name, public_key):
+    def _key_already_exists(self, cloud, name, public_key):
         """
         Method to check if the key with name already exists.
         :param name: Name of the key to be added and checked.
@@ -1113,7 +1113,7 @@ class Provider(ComputeNodeABC):
         """
         exists = False
 
-        db_keys = self.__get_keys(cloud)
+        db_keys = self._get_keys(cloud)
 
         fingerprint = SSHkey._fingerprint(public_key)
 
@@ -1134,7 +1134,7 @@ class Provider(ComputeNodeABC):
         # Get the project id from auth config.
         project_id = self.auth_config['project_id']
 
-        proj_metadata = self.__get_project_metadata(project_id)
+        proj_metadata = self._get_project_metadata(project_id)
 
         # Generate a simple dict from response.
         keys = self._key_dict(proj_metadata)
@@ -1155,7 +1155,7 @@ class Provider(ComputeNodeABC):
 
         cloud = self.cloud
 
-        if self.__key_already_exists(cloud, name, key['public_key']):
+        if self._key_already_exists(cloud, name, key['public_key']):
             raise ValueError(f"{name} key already exists.")
         else:
             Console.msg(f"Upload the key: {name} -> {cloud}")
@@ -1166,7 +1166,7 @@ class Provider(ComputeNodeABC):
         try:
             requestId = str(uuid.uuid1())
 
-            proj_metadata = self.__get_project_metadata(project_id)
+            proj_metadata = self._get_project_metadata(project_id)
 
             commonInstanceMetadata = proj_metadata['commonInstanceMetadata']
             items = commonInstanceMetadata.get('items') or []
