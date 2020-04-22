@@ -41,6 +41,7 @@ class Provider(ComputeNodeABC):
                     project_name: cloudmesh
                     storage_bucket: cloudmesh-bucket
                     zone: us-west3-a
+                    region: us-west3
                     flavor: g1-small
                     size: 10
                     resource_group: cloudmesh-group
@@ -288,14 +289,16 @@ class Provider(ComputeNodeABC):
             key = item['key']
             if (key == 'ssh-keys'):
                 value = item['value']
+
                 for line in value.splitlines():
                     key_dict = {}
 
-                    if line is None or line == '':
+                    if line is None or line.strip() == '':
                         # if line is empty, then dont process.
                         continue
 
                     key_items = line.split()
+
                     name_items = key_items[0].split(":")
                     key_dict["name"] = name_items[0]
                     key_dict["type"] = name_items[1]
@@ -1188,6 +1191,7 @@ class Provider(ComputeNodeABC):
         :return: the dict with the new name
         """
         # if destination is None, increase the name counter and use the new name
+        Console.error("Google cloud does not allow renaming of VM")
         raise NotImplementedError
 
     def _get_project_metadata(self, project_id):
