@@ -3,6 +3,7 @@ import os
 import subprocess
 import time
 import uuid
+from time import sleep
 from pprint import pprint
 
 import yaml
@@ -676,7 +677,6 @@ class Provider(ComputeNodeABC):
             result = self._info(name, displayType="vm")
 
         except Exception as se:
-            print(se)
             if type(se) == HttpError:
                 Console.error(
                     f'Unable to stop instance {name}. Reason: {se._get_reason()}')
@@ -750,7 +750,6 @@ class Provider(ComputeNodeABC):
         try:
             result = self._info(name, displayType=display_kind, **kwargs)
         except Exception as se:
-            print(se)
             if type(se) == HttpError:
                 Console.error(
                     f'Unable to get instance {name} info. Reason: {se._get_reason()}')
@@ -1148,11 +1147,8 @@ class Provider(ComputeNodeABC):
         :param name: name of the fm
         :return:
         """
-
         metadata = self._get_instance_metadata(name)
-
         metadata_items = metadata.get('items')
-
         return metadata_items
 
     def _update_metadata(self, project_id, zone, name, instance_metadata):
@@ -1190,10 +1186,10 @@ class Provider(ComputeNodeABC):
                                      name)
 
         except Exception as se:
-            print(se)
             if type(se) == HttpError:
                 Console.error(
-                    f'Unable to update metadata on instance {name}. Reason: {se._get_reason()}')
+                    f'Unable to update metadata on instance {name}. '
+                    f'Reason: {se._get_reason()}')
             else:
                 Console.error(f'Unable to update metadata on instance {name}.')
 
@@ -1276,7 +1272,6 @@ class Provider(ComputeNodeABC):
             metadata = info.get('metadata')
 
         except Exception as e:
-            pprint(e)
             Console.error(f"Instance with name {name} not found.")
 
         return metadata
@@ -1373,7 +1368,7 @@ class Provider(ComputeNodeABC):
             for item in items:
                 if item['key'] == 'ssh-keys':
                     currVal = item["value"]
-                    newVal = f"{currVal} \n {new_key}"
+                    newVal = f"{currVal}\n{new_key}"
                     item["value"] = newVal
                     keys_exists = True
                     break;
@@ -1399,7 +1394,6 @@ class Provider(ComputeNodeABC):
                                      name=name)
 
         except Exception as e:
-            pprint(e)
             raise ValueError(f"Error uploading key : {name}")
             key = None
 
@@ -1451,14 +1445,18 @@ class Provider(ComputeNodeABC):
                             user_info = {"userName": key["user_id"],
                                          "expireOn": key["expireOn"]}
 
-                            new_key = f"{new_key} {user_info} \n"
+                            new_key = f"{new_key} {user_info}\n"
 
                         if newVal is None:
                             newVal = new_key
                         else:
-                            newVal = f"{newVal} \n {new_key}"
+                            newVal = f"{newVal}\n{new_key}"
 
-                    item["value"] = newVal
+                    if newVal:
+                        item["value"] = newVal
+                    else:
+                        #No more keys, remove ssh-keys dict from list.
+                        items.remove(item)
 
             commonInstanceMetadata['items'] = items
 
@@ -1475,7 +1473,6 @@ class Provider(ComputeNodeABC):
                                      name=name)
 
         except Exception as e:
-            pprint(e)
             raise ValueError(f"Error deleting key : {name}")
             key = None
         else:
@@ -1616,10 +1613,11 @@ class Provider(ComputeNodeABC):
         # Get the flavors for the image project.
         try:
             # Get list of images related to image project.
-            flavor_response = compute_service.machineTypes().list(project=project_id, zone=zone).execute()
+            flavor_response = compute_service.machineTypes()\
+                                             .list(project=project_id,
+                                                   zone=zone).execute()
             # Extract the items.
             source_disk_flavor = flavor_response['items']
-            # print('flavors 2')
         except Exception as e:
             print(f'Error in get_flavors {e}')
         source_disk_flavor = self.update_dict(source_disk_flavor, kind='flavor')
@@ -1758,21 +1756,30 @@ class Provider(ComputeNodeABC):
 
             for item in firewall_list:
                 rule = item["name"]
-                name = rule.split('-')
+                names = rule.split('-')
+                names_len = len(names)
 
-                if len(name) < 3:
+                if names_len < 3:
                     continue
-                sec_group_name = name[1]
+                elif names_len == 3:
+                    sec_group_name = name or names[1]
+                else:
+                    if name:
+                        sec_group_name = name
+                    else:
+                        sec_group_name = names[1]
+                        for i in range(2, names_len-1):
+                            sec_group_name = sec_group_name + '-' + names[i]
 
                 if sec_group_name in added:
                     firewalls[sec_group_name]["security_group_rules"].append(
                         item)
-                    firewalls[sec_group_name]["rules"].append(name[2])
+                    firewalls[sec_group_name]["rules"].append(names[names_len-1])
                 else:
                     firewalls[sec_group_name] = {
                         "name": sec_group_name,
                         "description": item['description'].split('-')[1],
-                        "rules": [name[2]],
+                        "rules": [names[names_len-1]],
                         "security_group_rules": [item]
                     }
                     added.append(sec_group_name)
@@ -1796,7 +1803,9 @@ class Provider(ComputeNodeABC):
 
         for group in firewall_list:
             for rule in group['security_group_rules']:
-                rule['name'] = rule['name'].split("-")[2]
+                #Exctract rule name from cm={groupname}={rulename} format.
+                rule_names = rule['name'].split("-")
+                rule['name'] = rule_names[len(rule_names)-1]
                 allowed = rule['allowed'][0]
                 rule['protocol'] = allowed['IPProtocol']
                 if 'ports' in allowed:
@@ -1951,7 +1960,29 @@ class Provider(ComputeNodeABC):
         :param timeout: timeout
         :return:
         """
-        raise NotImplementedError
+        name = vm['name']
+        if interval is None:
+            # if interval is too low, OS will block your ip (I think)
+            interval = 10
+        if timeout is None:
+            timeout = 60
+        Console.info(
+            f"waiting for instance {name} to be reachable: Interval: "
+            f"{interval}, Timeout: {timeout}")
+        timer = 0
+        while timer < timeout:
+            sleep(interval)
+            timer += interval
+            try:
+                r = self.list()
+                r = self.ssh(vm=vm, command='echo IAmReady').strip()
+                if 'IAmReady' in r:
+                    return True
+            except Exception as e:
+                #If the error is not connection refused, then break.
+                Console.error(r)
+                break
+
         return False
 
     def console(self, vm=None):

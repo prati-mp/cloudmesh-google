@@ -3,7 +3,7 @@
 options=("-v")
 options+=($1)
 
-echo "Launch pytest ${options[@]}"
+echo "Google Cloud Compute Tests"
 #echo "Set cloud to Google"
 cms set cloud=google
 
