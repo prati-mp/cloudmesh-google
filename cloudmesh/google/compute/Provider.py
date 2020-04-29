@@ -11,7 +11,6 @@ from cloudmesh.abstract.ComputeNodeABC import ComputeNodeABC
 from cloudmesh.common.DateTime import DateTime
 from cloudmesh.common.Printer import Printer
 from cloudmesh.common.console import Console
-from cloudmesh.common.debug import VERBOSE
 from cloudmesh.common.util import banner
 from cloudmesh.common.util import path_expand
 from cloudmesh.configuration.Config import Config
@@ -206,8 +205,9 @@ class Provider(ComputeNodeABC):
         cloud = name
         config = Config()["cloudmesh"]
 
-        if not cloud in config["cloud"]:
-            Console.error('Google compute configuration missing. Please register.')
+        if cloud not in config["cloud"]:
+            Console.error('Google compute configuration missing. '
+                          'Please register.')
 
         self.cm_config = config["cloud"][cloud]["cm"]
         self.default_config = config["cloud"][cloud]["default"]
@@ -259,7 +259,8 @@ class Provider(ComputeNodeABC):
         # Check cred file exists.
         if not os.path.exists(client_secret_file):
             Console.error(
-                f"Credential file {client_secret_file} does not exists. Check the path and try again.")
+                f"Credential file {client_secret_file} does not exists. "
+                f"Check the path and try again.")
             return None
 
         # Authenticate using service account.
@@ -268,7 +269,7 @@ class Provider(ComputeNodeABC):
             scopes=scopes)
         return _credentials
 
-    def _get_service(self, service_type=None, version='v1', scopes=None):
+    def _get_service(self, service_type=None, version=None, scopes=None):
         """
         Method to get service.
         """
@@ -284,7 +285,7 @@ class Provider(ComputeNodeABC):
                 'Cannot Authenticate without Credentials or Service Type')
         else:
             compute_service = build(service_type,
-                                    self.cm_config["version"],
+                                    version or self.cm_config["version"],
                                     credentials=service_account_credentials)
 
         return compute_service
@@ -328,7 +329,7 @@ class Provider(ComputeNodeABC):
 
         for item in items:
             key = item['key']
-            if (key == 'ssh-keys'):
+            if key == 'ssh-keys':
                 value = item['value']
 
                 for line in value.splitlines():
@@ -349,8 +350,9 @@ class Provider(ComputeNodeABC):
                     key_dict["comment"] = key_items[2]
 
                     # Join format and key.
-                    key_dict[
-                        "public_key"] = f"{key_dict['type']} {key_dict['key']} {key_dict['comment']}"
+                    key_dict["public_key"] = f"{key_dict['type']} " \
+                                             f"{key_dict['key']} " \
+                                             f"{key_dict['comment']}"
 
                     key_dict["private_key"] = None
 
@@ -360,7 +362,7 @@ class Provider(ComputeNodeABC):
 
                     key_dict["group"] = self.kind
 
-                    if (len(key_items) > 3):
+                    if len(key_items) > 3:
                         user_item = json.loads(key_items[3])
                         key_dict["user_id"] = user_item["userName"]
                         key_dict["expireOn"] = user_item["expireOn"]
@@ -385,12 +387,10 @@ class Provider(ComputeNodeABC):
 
     def _process_status(self, instance):
         instance_dict = self._process_instance(instance)
-        status_dict = {}
-        status_dict["name"] = instance_dict["cm.name"]
-        status_dict["kind"] = instance_dict["cm.kind"]
-        status_dict["status"] = instance_dict["status"]
-        status_dict["id"] = instance_dict["id"]
-        status_dict["zone"] = instance_dict["zone"]
+        status_dict = {"name": instance_dict["cm.name"],
+                       "kind": instance_dict["cm.kind"],
+                       "status": instance_dict["status"],
+                       "id": instance_dict["id"], "zone": instance_dict["zone"]}
 
         return status_dict
 
@@ -428,17 +428,17 @@ class Provider(ComputeNodeABC):
         instance_dict["mode"] = disk["mode"]
         instance_dict["modified"] = str(DateTime.now())
 
-        #Metadata
+        # Metadata
         instance_metadata = instance.get("metadata", {})
         instance_dict["metadata"] = instance_metadata.get('items', [])
 
-        #firewall tags.
+        # firewall tags.
         instance_dict["tags"] = instance["tags"]
 
         # Network access.
         network_config = instance["networkInterfaces"]
 
-        if (network_config):
+        if network_config:
             network_config = network_config[0]
             instance_dict["network_fingerprint"] = network_config["fingerprint"]
             instance_dict["networkIP"] = network_config["networkIP"]
@@ -588,7 +588,7 @@ class Provider(ComputeNodeABC):
                     raise Exception(result['error']['errors'])
 
                 if result['status'] == 'DONE':
-                        break
+                    break
 
                 time.sleep(1)
         except Exception as se:
@@ -620,12 +620,14 @@ class Provider(ComputeNodeABC):
 
         try:
 
-            project_id = kwargs.get('project_id', self.auth_config["project_id"])
+            project_id = kwargs.get('project_id',
+                                    self.auth_config["project_id"])
             zone = kwargs.get('zone', self.default_config["zone"])
 
-            _operation = compute_service.instances().start(project=project_id,
-                                                           zone=zone,
-                                                           instance=name).execute()
+            _operation = compute_service.instances()\
+                                        .start(project=project_id,
+                                               zone=zone,
+                                               instance=name).execute()
 
             self._wait_for_operation(compute_service,
                                      _operation,
@@ -636,7 +638,8 @@ class Provider(ComputeNodeABC):
         except Exception as se:
             if type(se) == HttpError:
                 Console.error(
-                    f'Unable to start instance {name}. Reason: {se._get_reason()}')
+                    f'Unable to start instance {name}. '
+                    f'Reason: {se._get_reason()}')
             else:
                 Console.error(f'Unable to start instance {name}.')
         else:
@@ -659,7 +662,8 @@ class Provider(ComputeNodeABC):
             return
         try:
 
-            project_id = kwargs.get('project_id', self.auth_config["project_id"])
+            project_id = kwargs.get('project_id',
+                                    self.auth_config["project_id"])
             zone = kwargs.get('zone', self.default_config["zone"])
 
             _operation = compute_service.instances().stop(
@@ -679,7 +683,8 @@ class Provider(ComputeNodeABC):
         except Exception as se:
             if type(se) == HttpError:
                 Console.error(
-                    f'Unable to stop instance {name}. Reason: {se._get_reason()}')
+                    f'Unable to stop instance {name}. '
+                    f'Reason: {se._get_reason()}')
             else:
                 Console.error(f'Unable to stop instance {name}.')
 
@@ -694,8 +699,6 @@ class Provider(ComputeNodeABC):
         :return:
         """
 
-        result = None
-
         project_id = kwargs.get('project_id', self.auth_config["project_id"])
         zone = kwargs.get('zone', self.default_config["zone"])
 
@@ -709,7 +712,7 @@ class Provider(ComputeNodeABC):
 
         return result
 
-    def _info(self, name, displayType, compute_service=None, **kwargs):
+    def _info(self, name, displayType, compute_service=None):
         """
         gets the information of a node with a given name
 
@@ -720,7 +723,7 @@ class Provider(ComputeNodeABC):
 
         result = self._raw_instance_info(name, compute_service)
 
-        if displayType == None:
+        if not displayType:
             displayType = "vm"
 
         if displayType == 'status':
@@ -748,11 +751,12 @@ class Provider(ComputeNodeABC):
         display_kind = kwargs.get('kind', "vm")
 
         try:
-            result = self._info(name, displayType=display_kind, **kwargs)
+            result = self._info(name, displayType=display_kind)
         except Exception as se:
             if type(se) == HttpError:
                 Console.error(
-                    f'Unable to get instance {name} info. Reason: {se._get_reason()}')
+                    f'Unable to get instance {name} info. '
+                    f'Reason: {se._get_reason()}')
             else:
                 Console.error(f'Unable to get info of instance {name}.')
 
@@ -836,9 +840,10 @@ class Provider(ComputeNodeABC):
         :return: the dict of the node
         """
 
-        result = None
+        vm = None
         compute_service = self._get_compute_service()
         _operation = None
+
         if name is None:
             return
         try:
@@ -868,7 +873,8 @@ class Provider(ComputeNodeABC):
         except Exception as se:
             if type(se) == HttpError:
                 Console.error(
-                    f'Unable to delete instance {name}. Reason: {se._get_reason()}')
+                    f'Unable to delete instance {name}. '
+                    f'Reason: {se._get_reason()}')
             else:
                 Console.error(f'Unable to delete instance {name}.')
         else:
@@ -930,58 +936,59 @@ class Provider(ComputeNodeABC):
                         "diskSizeGb": diskSize
                     }
                 }
-              ],
-              "canIpForward": False,
-              "networkInterfaces": [
+            ],
+            "canIpForward": False,
+            "networkInterfaces": [
                 {
-                  "kind": "compute#networkInterface",
-                  "accessConfigs": [
-                    {
-                      "kind": "compute#accessConfig",
-                      "name": "External NAT",
-                      "type": "ONE_TO_ONE_NAT",
-                      "networkTier": "STANDARD"
-                    }
-                  ]
+                    "kind": "compute#networkInterface",
+                    "accessConfigs": [
+                        {
+                            "kind": "compute#accessConfig",
+                            "name": "External NAT",
+                            "type": "ONE_TO_ONE_NAT",
+                            "networkTier": "STANDARD"
+                        }
+                    ]
                 }
-              ],
-              "description": f"{vm_name} created using cloudmesh.",
-              "labels": {
+            ],
+            "description": f"{vm_name} created using cloudmesh.",
+            "labels": {
                 "project_id": "cloudmesh"
-              },
-              "scheduling": {
+            },
+            "scheduling": {
                 "onHostMaintenance": "TERMINATE",
                 "automaticRestart": False
-              },
-              "deletionProtection": False,
-              "reservationAffinity": {
+            },
+            "deletionProtection": False,
+            "reservationAffinity": {
                 "consumeReservationType": "ANY_RESERVATION"
-              },
-              "serviceAccounts": [
+            },
+            "serviceAccounts": [
                 {
-                  "email": self.auth_config['client_email'],
-                  "scopes": [
-                    "https://www.googleapis.com/auth/devstorage.read_only",
-                    "https://www.googleapis.com/auth/logging.write",
-                    "https://www.googleapis.com/auth/monitoring.write",
-                    "https://www.googleapis.com/auth/servicecontrol",
-                    "https://www.googleapis.com/auth/service.management.readonly",
-                    "https://www.googleapis.com/auth/trace.append"
-                  ]
+                    "email": self.auth_config['client_email'],
+                    "scopes": [
+                        "https://www.googleapis.com/auth/devstorage.read_only",
+                        "https://www.googleapis.com/auth/logging.write",
+                        "https://www.googleapis.com/auth/monitoring.write",
+                        "https://www.googleapis.com/auth/servicecontrol",
+                        "https://www.googleapis.com/auth/service.management.readonly",
+                        "https://www.googleapis.com/auth/trace.append"
+                    ]
                 }
-              ],
-              "shieldedInstanceConfig": {
+            ],
+            "shieldedInstanceConfig": {
                 "enableSecureBoot": False,
                 "enableVtpm": True,
                 "enableIntegrityMonitoring": True
-              }
             }
+        }
 
         return compute_config
 
     # TODO: Change params to dict or kwargs.
     def _create_instance(self, compute_service, project, zone, name, bucket,
-                        disk_image, machineType, startup_script, diskSize, secgroup):
+                         disk_image, machineType, startup_script, diskSize,
+                         secgroup):
 
         """
         create a VM instance for given name.
@@ -1001,7 +1008,7 @@ class Provider(ComputeNodeABC):
 
         result = {}
 
-        if (startup_script is not None):
+        if startup_script:
             startup_script = open(startup_script, 'r').read()
 
         compute_config = self._get_compute_config(name,
@@ -1038,8 +1045,6 @@ class Provider(ComputeNodeABC):
                     f"Error creating instance: {name} - {de._get_reason()}")
             else:
                 Console.error(f"Error creating instance: {name} - {de}")
-
-            result = {}
 
             raise ValueError(f"Creating of instance: {name} failed.")
 
@@ -1079,7 +1084,8 @@ class Provider(ComputeNodeABC):
         resource_group = group or self.default_config['resource_group']
         secgroup = kwargs.get('secgroup', 'default')
 
-        bucket = kwargs.get('storage_bucket', self.default_config['storage_bucket'])
+        bucket = kwargs.get('storage_bucket',
+                            self.default_config['storage_bucket'])
 
         name = name or 'vm1'
         compute_service = self._get_compute_service()
@@ -1093,7 +1099,7 @@ class Provider(ComputeNodeABC):
 
         startup_script = kwargs.get('startup_script', None)
 
-        #Get the image link using the name of the image.
+        # Get the image link using the name of the image.
         os_image = self.image(image)
 
         if type(os_image) == list:
@@ -1102,9 +1108,9 @@ class Provider(ComputeNodeABC):
         disk_image = os_image['selfLink']
 
         result = self._create_instance(compute_service, project_id, zone, name,
-                                        bucket, disk_image, machineType,
-                                        startup_script, diskSize=size,
-                                        secgroup=secgroup)
+                                       bucket, disk_image, machineType,
+                                       startup_script, diskSize=size,
+                                       secgroup=secgroup)
 
         return result
 
@@ -1112,28 +1118,28 @@ class Provider(ComputeNodeABC):
         """
         sets the metadata for the server
 
-        :param name: name of the fm
-        :param metadata: the metadata
+        :param name: name of the VM
+        :param keys: dict of metadata that needs to be set on VM.
         :return:
         """
 
         metadata = self._get_instance_metadata(name)
 
-        metadata_items = metadata.get('items',  [])
+        metadata_items = metadata.get('items', [])
 
         for key, value in keys.items():
-            #banner(f"{key}={value}")
-            metadata_items.append({"key":key, "value":value})
+            # banner(f"{key}={value}")
+            metadata_items.append({"key": key, "value": value})
 
-        metadata['items'] =  metadata_items
+        metadata['items'] = metadata_items
 
         project_id = self.auth_config["project_id"]
-        zone =  self.default_config["zone"]
+        zone = self.default_config["zone"]
 
         operation_result = self._update_metadata(project_id,
-                                                  zone,
-                                                  name,
-                                                  metadata)
+                                                 zone,
+                                                 name,
+                                                 metadata)
 
         if operation_result and operation_result.get('status') == 'DONE':
             Console.ok(f"Metadata keys added to instance {name}")
@@ -1180,10 +1186,10 @@ class Provider(ComputeNodeABC):
                 requestId=requestId).execute()
 
             result = self._wait_for_operation(compute_service,
-                                     _operation,
-                                     project_id,
-                                     zone,
-                                     name)
+                                              _operation,
+                                              project_id,
+                                              zone,
+                                              name)
 
         except Exception as se:
             if type(se) == HttpError:
@@ -1197,9 +1203,16 @@ class Provider(ComputeNodeABC):
 
     def delete_server_metadata(self, name, key):
         """
-        gets the metadata for the server
+        Gets the metadata for the server
 
+        :param name: name of the vm
+        :param key:
+        :return:
+        """
+        """
+        
         :param name: name of the fm
+        
         :return:
         """
 
@@ -1207,24 +1220,25 @@ class Provider(ComputeNodeABC):
 
         metadata_items = metadata.get('items')
 
-        key_exists = False;
+        key_exists = False
 
         for item in metadata_items:
             if item['key'] == key:
                 metadata_items.remove(item)
-                key_exists = True;
+                key_exists = True
                 break
 
         if not key_exists:
             Console.error(f"Metadata key {key} not found in instance {name}")
             return metadata_items
 
-        metadata['items'] =  metadata_items
+        metadata['items'] = metadata_items
 
         project_id = self.auth_config["project_id"]
-        zone =  self.default_config["zone"]
+        zone = self.default_config["zone"]
 
-        operation_result = self._update_metadata(project_id, zone, name, metadata)
+        operation_result = self._update_metadata(project_id, zone, name,
+                                                 metadata)
 
         if operation_result and operation_result.get('status') == 'DONE':
             Console.ok(f"Metadata key {key} deleted from instance {name}")
@@ -1271,7 +1285,7 @@ class Provider(ComputeNodeABC):
 
             metadata = info.get('metadata')
 
-        except Exception as e:
+        except:
             Console.error(f"Instance with name {name} not found.")
 
         return metadata
@@ -1307,7 +1321,7 @@ class Provider(ComputeNodeABC):
         for key in db_keys:
             if key["fingerprint"] == fingerprint:
                 key_found = key
-                break;
+                break
 
         return key_found
 
@@ -1341,8 +1355,6 @@ class Provider(ComputeNodeABC):
 
         name = key["name"]
 
-        cloud = self.cloud
-
         # Get the project id from auth config.
         project_id = self.auth_config['project_id']
 
@@ -1371,10 +1383,10 @@ class Provider(ComputeNodeABC):
                     newVal = f"{currVal}\n{new_key}"
                     item["value"] = newVal
                     keys_exists = True
-                    break;
+                    break
 
             if not keys_exists:
-                #If keys does not exists, then append.
+                # If keys does not exists, then append.
                 items.append({
                     "key": "ssh-keys",
                     "value": new_key
@@ -1385,17 +1397,16 @@ class Provider(ComputeNodeABC):
             compute_service = self._get_compute_service()
 
             _oper = compute_service.projects().setCommonInstanceMetadata(
-                                               project=project_id,
-                                               body=commonInstanceMetadata,
-                                               requestId=requestId).execute()
+                project=project_id,
+                body=commonInstanceMetadata,
+                requestId=requestId).execute()
 
             self._wait_for_operation(compute_service, _oper,
                                      project_id,
                                      name=name)
 
-        except Exception as e:
+        except:
             raise ValueError(f"Error uploading key : {name}")
-            key = None
 
         return key
 
@@ -1427,7 +1438,7 @@ class Provider(ComputeNodeABC):
                     key_found = True
                     break
 
-            if key_found == False:
+            if not key_found:
                 Console.error(f"Key {name} not found.")
                 raise ValueError(f"Key {name} not found.")
 
@@ -1455,12 +1466,12 @@ class Provider(ComputeNodeABC):
                     if newVal:
                         item["value"] = newVal
                     else:
-                        #No more keys, remove ssh-keys dict from list.
+                        # No more keys, remove ssh-keys dict from list.
                         items.remove(item)
 
             commonInstanceMetadata['items'] = items
 
-            #Update project metadata to delete the key.
+            # Update project metadata to delete the key.
             compute_service = self._get_compute_service()
 
             _oper = compute_service.projects().setCommonInstanceMetadata(
@@ -1472,9 +1483,8 @@ class Provider(ComputeNodeABC):
                                      project_id,
                                      name=name)
 
-        except Exception as e:
+        except:
             raise ValueError(f"Error deleting key : {name}")
-            key = None
         else:
             Console.ok(f"Key {name} is deleted.")
 
@@ -1489,22 +1499,19 @@ class Provider(ComputeNodeABC):
         result = None
 
         # Get the images for the image project.
-        image_project = kwargs.get('image_project', self.default_config["image_project"])
+        image_project = kwargs.get('image_project',
+                                   self.default_config["image_project"])
+
         image_zone = kwargs.get('zone', self.default_config["zone"])
 
         try:
             compute_service = self._get_compute_service()
 
-            #image_response = {}
-            #filename = path_expand('../../tests/images.json')
-            #with open(filename, 'r') as f:
-            #    image_response = json.load(f)
-
             # Get list of Custom images related to image project.
             image_list = []
             _next_url = None
 
-            #Iterate to get images till nextToken is None.
+            # Iterate to get images till nextToken is None.
             while True:
                 # Make the first call.
                 image_request = compute_service.images().list(
@@ -1517,7 +1524,7 @@ class Provider(ComputeNodeABC):
                     list_items = image_response["items"]
                     image_list.extend(list_items)
 
-                if image_response is not None and "nextPageToken" in image_response:
+                if not image_response and "nextPageToken" in image_response:
                     _next_url = image_response["nextPageToken"]
                 else:
                     break
@@ -1539,7 +1546,7 @@ class Provider(ComputeNodeABC):
 
         result = None
 
-        ## Check DB:
+        # Check DB:
         cm = CmDatabase()
 
         query = {"name": {'$regex': f".*{name}.*"}}
@@ -1553,9 +1560,8 @@ class Provider(ComputeNodeABC):
 
         cm.close_client()
 
-        #If not found in Db, get it from provider.
+        # If not found in Db, get it from provider.
         if result is None:
-
             # Get the images for the image project.
             image_project = kwargs.get('image_project',
                                        self.default_config["image_project"])
@@ -1564,8 +1570,9 @@ class Provider(ComputeNodeABC):
 
             compute_service = self._get_compute_service()
 
-            image = compute_service.images().getFromFamily(project=image_project,
-                                                           family=image_name).execute()
+            image = compute_service.images().getFromFamily(
+                project=image_project,
+                family=image_name).execute()
 
             result = self.update_dict(image, kind="image")
 
@@ -1580,19 +1587,22 @@ class Provider(ComputeNodeABC):
         """
         comput_servce = self._get_compute_service()
         project_id = kwargs.get('project_id', self.auth_config['project_id'])
-        zone = kwargs.get('zone',  self.default_config['zone'])
-        flavor = self._get_flavor(self, comput_servce, project_id, zone, name)
+        zone = kwargs.get('zone', self.default_config['zone'])
+        flavor = self._get_flavor(comput_servce, project_id, zone, name)
 
         return flavor
 
     def _get_flavor(self, compute_service, project_id, zone, name):
         # Get the flavor for the project_id.
-        flavor = None;
+        flavor = None
         try:
-            flavor = compute_service.machineTypes().get(project=project_id, zone=zone, machineType=name).execute()
+            flavor = compute_service.machineTypes()\
+                                    .get(project=project_id,
+                                         zone=zone,
+                                         machineType=name).execute()
         except Exception as e:
             print(f'Error in get_flavors {e}')
-        flavor=self.update_dict(flavor, kind='flavor')
+        flavor = self.update_dict(flavor, kind='flavor')
 
         return flavor
 
@@ -1604,7 +1614,7 @@ class Provider(ComputeNodeABC):
         """
         comput_servce = self._get_compute_service()
         project_id = kwargs.get('project_id', self.auth_config['project_id'])
-        zone = kwargs.get('zone',  self.default_config['zone'])
+        zone = kwargs.get('zone', self.default_config['zone'])
 
         return self._get_flavors(comput_servce, project_id, zone)
 
@@ -1613,9 +1623,9 @@ class Provider(ComputeNodeABC):
         # Get the flavors for the image project.
         try:
             # Get list of images related to image project.
-            flavor_response = compute_service.machineTypes()\
-                                             .list(project=project_id,
-                                                   zone=zone).execute()
+            flavor_response = compute_service.machineTypes() \
+                .list(project=project_id,
+                      zone=zone).execute()
             # Extract the items.
             source_disk_flavor = flavor_response['items']
         except Exception as e:
@@ -1768,18 +1778,19 @@ class Provider(ComputeNodeABC):
                         sec_group_name = name
                     else:
                         sec_group_name = names[1]
-                        for i in range(2, names_len-1):
+                        for i in range(2, names_len - 1):
                             sec_group_name = sec_group_name + '-' + names[i]
 
                 if sec_group_name in added:
                     firewalls[sec_group_name]["security_group_rules"].append(
                         item)
-                    firewalls[sec_group_name]["rules"].append(names[names_len-1])
+                    firewalls[sec_group_name]["rules"].append(
+                        names[names_len - 1])
                 else:
                     firewalls[sec_group_name] = {
                         "name": sec_group_name,
                         "description": item['description'].split('-')[1],
-                        "rules": [names[names_len-1]],
+                        "rules": [names[names_len - 1]],
                         "security_group_rules": [item]
                     }
                     added.append(sec_group_name)
@@ -1791,21 +1802,22 @@ class Provider(ComputeNodeABC):
 
         return list(firewalls.values())
 
-    def list_secgroup_rules(self, name='default'):
+    def list_secgroup_rules(self, name=None):
         """
         List the named security group
 
         :param name: The name of the group, if None all will be returned
         :return:
         """
-        firewall_list = self.list_secgroups()
+
+        firewall_list = self.list_secgroups(name)
         result = []
 
         for group in firewall_list:
             for rule in group['security_group_rules']:
-                #Exctract rule name from cm={groupname}={rulename} format.
+                # Exctract rule name from cm={groupname}={rulename} format.
                 rule_names = rule['name'].split("-")
-                rule['name'] = rule_names[len(rule_names)-1]
+                rule['name'] = rule_names[len(rule_names) - 1]
                 allowed = rule['allowed'][0]
                 rule['protocol'] = allowed['IPProtocol']
                 if 'ports' in allowed:
@@ -1846,7 +1858,7 @@ class Provider(ComputeNodeABC):
             firewall = {
                 "kind": "compute#firewall",
                 "name": firewall_name,
-                "network": "projects/prefab-manifest-269104/global/networks/default",
+                "network": f"projects/{project_id}/global/networks/default",
                 "direction": "INGRESS",
                 "priority": 1000,
                 "description": f"{rule['name']} - {grp['description']}",
@@ -1978,9 +1990,9 @@ class Provider(ComputeNodeABC):
                 r = self.ssh(vm=vm, command='echo IAmReady').strip()
                 if 'IAmReady' in r:
                     return True
-            except Exception as e:
-                #If the error is not connection refused, then break.
-                Console.error(r)
+            except:
+                # If the error is not connection refused, then break.
+                Console.error(f"Unable to ssh to VM {name}")
                 break
 
         return False
@@ -1993,11 +2005,9 @@ class Provider(ComputeNodeABC):
         :return:
         """
         raise NotImplementedError
-        return ""
 
     def log(self, vm=None):
         raise NotImplementedError
-        return ""
 
     def ssh(self, vm=None, command=None):
 
@@ -2041,7 +2051,8 @@ class Provider(ComputeNodeABC):
     def json_to_yaml(cls, name, filename="~/.cloudmesh/security/google.json"):
         """
         Given a json file downloaded from google, copies the content into the
-        cloudmesh yaml file, while overwriting or creating a new compute provider
+        cloudmesh yaml file, while overwriting or creating a new
+        compute provider
 
         :param cls:
         :param name:
