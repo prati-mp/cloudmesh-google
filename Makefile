@@ -4,111 +4,44 @@ VERSION=`head -1 VERSION`
 
 define banner
 	@echo
-	@echo "###################################"
-	@echo $(1)
-	@echo "###################################"
+	@echo "############################################################"
+	@echo "# $(1) "
+	@echo "############################################################"
 endef
 
-all:doc
-
 source:
-	cd ../cloudmesh.common; make source
-	$(call banner, "Install cloudmesh-cmd5")
+	$(call banner, "Install cloudmesh-sommon")
 	pip install -e . -U
-	cms help
+
 
 requirements:
-	echo "cloudmesh-cmd5" > tmp.txt
-	echo "cloudmesh-sys" >> tmp.txt
-	echo "cloudmesh-inventory" >> tmp.txt
-	echo "cloudmesh-configuration" >> tmp.txt
+	echo "cloudmesh-common" > tmp.txt
 	pip-compile setup.py
 	fgrep -v "# via" requirements.txt | fgrep -v "cloudmesh" >> tmp.txt
 	mv tmp.txt requirements.txt
 	-git commit -m "update requirements" requirements.txt
 	-git push
 
+test:
+	pytest -v --html=.report.html
+	open .report.html
 
-
-manual:
-	mkdir -p docs-source/source/manual
-	cms help > /tmp/commands.rst
-	echo "Commands" > docs-source/source/manual/commands.rst
-	echo "========" >> docs-source/source/manual/commands.rst
-	echo  >> docs-source/source/manual/commands.rst
-	tail -n +4 /tmp/commands.rst >> docs-source/source/manual/commands.rst
-	cms man --kind=rst admin > docs-source/source/manual/admin.rst
-	cms man --kind=rst banner > docs-source/source/manual/banner.rst
-	cms man --kind=rst clear > docs-source/source/manual/clear.rst
-	cms man --kind=rst echo > docs-source/source/manual/echo.rst
-	cms man --kind=rst default > docs-source/source/manual/default.rst
-	cms man --kind=rst info > docs-source/source/manual/info.rst
-	cms man --kind=rst pause > docs-source/source/manual/pause.rst
-	cms man --kind=rst plugin > docs-source/source/manual/plugin.rst
-	cms man --kind=rst q > docs-source/source/manual/q.rst
-	cms man --kind=rst quit > docs-source/source/manual/quit.rst
-	cms man --kind=rst shell > docs-source/source/manual/shell.rst
-	cms man --kind=rst sleep > docs-source/source/manual/sleep.rst
-	cms man --kind=rst stopwatch > docs-source/source/manual/stopwatch.rst
-	cms man --kind=rst sys > docs-source/source/manual/sys.rst
-	cms man --kind=rst var > docs-source/source/manual/var.rst
-	cms man --kind=rst vbox > docs-source/source/manual/vbox.rst
-	cms man --kind=rst vcluster > docs-source/source/manual/vcluster.rst
-	cms man --kind=rst batch > docs-source/source/manual/batch.rst
-	cms man --kind=rst version > docs-source/source/manual/version.rst
-	cms man --kind=rst open > docs-source/source/manual/open.rst
-	cms man --kind=rst vm > docs-source/source/manual/vm.rst
-	cms man --kind=rst ip > docs-source/source/manual/ip.rst
-	cms man --kind=rst key > docs-source/source/manual/key.rst
-	cms man --kind=rst secgroup > docs-source/source/manual/secgroup.rst
-	cms man --kind=rst image > docs-source/source/manual/image.rst
-	cms man --kind=rst flavor > docs-source/source/manual/flavor.rst
-	cms man --kind=rst ssh > docs-source/source/manual/ssh.rst
-	cms man --kind=rst storage > docs-source/source/manual/storage.rst
-	cms man --kind=rst workflow > docs-source/source/manual/workflow.rst
-
-
-doc:
-	rm -rf docs
-	mkdir -p dest
-	cd docs-source; make html
-	cp -r docs-source/build/html/ docs
-
-view:
-	open docs/index.html
-
-nist-install: nist-download nist-copy
-
-nist-download:
-	rm -rf ../nist
-	git clone https://github.com/davidmdem/nist ../nist
-
-
-nist-copy:
-	cd cm4/api; rm -rf specs; mkdir specs;
-	rsync -a --prune-empty-dirs --include '*/' --include '*.yaml' --exclude '*' ../nist/services/ ./cm4/api/specs/
-
-
-#
-# TODO: BUG: This is broken
-#
-#pylint:
-#	mkdir -p docs/qc/pylint/cm
-#	pylint --output-format=html cloudmesh > docs/qc/pylint/cm/cloudmesh.html
-#	pylint --output-format=html cloud > docs/qc/pylint/cm/cloud.html
+dtest:
+	pytest -v --capture=no
 
 clean:
 	$(call banner, "CLEAN")
-	rm -rf dist
 	rm -rf *.zip
 	rm -rf *.egg-info
 	rm -rf *.eggs
 	rm -rf docs/build
 	rm -rf build
+	rm -rf dist
 	find . -type d -name __pycache__ -delete
 	find . -name '*.pyc' -delete
 	rm -rf .tox
 	rm -f *.whl
+
 
 ######################################################################
 # PYPI
@@ -122,21 +55,17 @@ dist:
 	python setup.py sdist bdist_wheel
 	twine check dist/*
 
-patch: clean requirements
-	$(call banner, "bbuild")
-	bump2version --no-tag --allow-dirty patch
+patch: clean
+	$(call banner, "patch")
+	bump2version --allow-dirty patch
 	python setup.py sdist bdist_wheel
-	git push
-	# git push origin master --tags
+	git push origin master --tags
 	twine check dist/*
 	twine upload --repository testpypi  dist/*
 	# $(call banner, "install")
+	# pip search "cloudmesh" | fgrep cloudmesh-$(package)
 	# sleep 10
 	# pip install --index-url https://test.pypi.org/simple/ cloudmesh-$(package) -U
-
-	#make
-	#git commit -m "update documentation" docs
-	#git push
 
 minor: clean
 	$(call banner, "minor")
@@ -154,8 +83,8 @@ release: clean
 	$(call banner, "install")
 	@cat VERSION
 	@echo
-	#sleep 10
-	#pip install -U cloudmesh-common
+	# sleep 10
+	# pip install -U cloudmesh-common
 
 
 dev:
@@ -182,4 +111,14 @@ log:
 	git commit -m "chg: dev: Update ChangeLog" ChangeLog
 	git push
 
+# bump:
+#	git checkout master
+#	git pull
+#	tox
+#	python setup.py sdist bdist_wheel upload
+#	bumpversion --no-tag patch
+#	git push origin master --tags
 
+
+# API_JSON=$(printf '{"tag_name": "v%s","target_commitish": "master","name": "v%s","body": "Release of version %s","draft": false,"prerelease": false}' $VERSION $VERSION $VERSION)
+# curl --data "$API_JSON" https://api.github.com/repos/:owner/:repository/releases?access_token=:access_token
