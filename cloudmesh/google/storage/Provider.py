@@ -7,6 +7,7 @@ from pprint import pprint
 from cloudmesh.common.dotdict import dotdict
 from cloudmesh.common.util import path_expand, writefile
 from cloudmesh.common.variables import Variables
+from cloudmesh.common.console import Console
 from cloudmesh.configuration.Config import Config
 from cloudmesh.abstract.StorageABC import StorageABC
 from google.cloud import storage
@@ -169,34 +170,47 @@ class Provider(StorageABC):
          :return: dict
 
          """
-
+        self.storage_dict['action'] = "get"
         self.storage_dict['source'] = source  # src
-        self.storage_dict[f'destination/{source}'] = destination
+        self.storage_dict['destination'] = destination
 
-        if self.debug:
-            print ("GET")
-            print (f"Source {self.bucket}:{source}")
-            print(f"Destination local:{destination}")
+
+        trimmed_source = self.massage_path(source)
+        trimmed_destination = self.massage_path(destination)
+
         try:
             # Excluding any directory from the bucket.
             #filter and list the files which need to download using Google Storage bucket.list_blobs function.
             # List all objects that satisfy the filter.
             delimiter = '/'
-            blobs = self.bucket.list_blobs(prefix=source, delimiter=delimiter)
-            if self.debug:
-                print("Blobs in google bucket(files/folders):", blobs)
-            if not os.path.exists(destination):
-                os.makedirs(destination)
-            for blob in blobs:
-                destination_uri = f'{destination}/{blob.name}'
+            blobs = self.bucket.list_blobs(prefix=trimmed_source, delimiter=delimiter)
+            filesDownloaded = []
 
-                logging.info(f'Blobs: {blob.name}')
-                print(f'{blob.name} ->  {destination_uri}. downloading. ', end='')
-                blob.download_to_filename(path_expand(destination_uri))
-                print('ok.')
+            for blob in blobs:
+                blob_name = str(blob.name)
+                filesDownloaded.append(blob_name)
+                # If source is not a file
+                if (blob_name[-1] !='/'):
+                    # If blob name contains a prefix eg. a/text1.txt, create folder structure
+                    if "/" in blob_name:
+                        blob.download_to_filename(path_expand(f'{trimmed_destination}/{blob_name}'))
+
+                    else:
+                        blob.download_to_filename(path_expand(f'{trimmed_destination}'))
+                else:
+                    # If blob name is a prefix eg: a/
+                    os.makedirs(path_expand(f'{trimmed_destination}'))
+                    # remove directory name from destination variable as blob name will contain prefixes
+                    trimmed_destination = trimmed_destination.replace(blob_name, "")
+            self.storage_dict['message'] = "Source Downloaded"
+            self.storage_dict['objectlist'] = filesDownloaded
+            pprint(self.storage_dict)
 
         except Exception as e:
-            print('Failed to download : ' + str(e))
+            Console.error('Failed to download : ' + str(e))
+            status = None
+        #Need to add cm to dict and add return
+        #return self.storage_dict
 
     def put(self, source=None, destination=None, recursive=None ):
         """
@@ -437,3 +451,21 @@ class Provider(StorageABC):
     #
     #
     #
+
+    # Copied method from aws provider
+    def massage_path(self, file_name_path):
+        massaged_path = file_name_path
+        # convert possible windows style path to unix path
+        massaged_path = massaged_path.replace('\\', '/')
+        # remove leading slash symbol in path
+        if len(massaged_path) > 0 and massaged_path[0] == '/':
+            massaged_path = massaged_path[1:]
+        # expand home directory in path
+        massaged_path = massaged_path.replace('~', os.path.expanduser('~'))
+        # pprint(massaged_path)
+        # expand possible current directory reference in path
+        if massaged_path[0:2] == '.\\' or massaged_path[0:2] == './':
+            massaged_path = os.path.abspath(massaged_path)
+
+        return massaged_path
+
